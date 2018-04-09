@@ -53,15 +53,28 @@ object PostgresEventJournal {
   final case class Settings(connectionSettings: ConnectionSettings,
                             pollingInterval: FiniteDuration)
 
+  final class Builder[F[_]] {
+    def apply[K, E](settings: PostgresEventJournal.Settings,
+                    entityName: EntityName,
+                    tagging: Tagging[K],
+                    serializer: Serializer[E])(
+        implicit F: Async[F],
+        encodeKey: KeyEncoder[K],
+        decodeKey: KeyDecoder[K]): PostgresEventJournal[F, K, E] =
+      new PostgresEventJournal(settings, entityName, tagging, serializer)
+  }
+
+  def apply[F[_]]: Builder[F] = new Builder[F]
+
 }
 
-class PostgresEventJournal[F[_], K, E](settings: PostgresEventJournal.Settings,
-                                       entityName: EntityName,
-                                       tagging: Tagging[K],
-                                       serializer: Serializer[E])(
-    implicit F: Async[F],
-    encodeKey: KeyEncoder[K],
-    decodeKey: KeyDecoder[K])
+final class PostgresEventJournal[F[_], K, E](
+    settings: PostgresEventJournal.Settings,
+    entityName: EntityName,
+    tagging: Tagging[K],
+    serializer: Serializer[E])(implicit F: Async[F],
+                               encodeKey: KeyEncoder[K],
+                               decodeKey: KeyDecoder[K])
     extends EventJournal[F, K, E] {
   import settings._
 
@@ -75,7 +88,7 @@ class PostgresEventJournal[F[_], K, E](settings: PostgresEventJournal.Settings,
     connectionSettings.password
   )
 
-  val append =
+  private val appendQuery =
     s"insert into ${connectionSettings.tableName} (entity, key, seqNr, typeHint, bytes, tags) values (?, ?, ?, ?, ?, ?)"
 
   override def append(entityKey: K,
@@ -97,10 +110,10 @@ class PostgresEventJournal[F[_], K, E](settings: PostgresEventJournal.Settings,
     val toRow_ = (toRow _).tupled
 
     def insertOne(event: E) =
-      Update[Row](append).run(toRow(event, 0))
+      Update[Row](appendQuery).run(toRow(event, 0))
 
     def insertAll =
-      Update[Row](append)
+      Update[Row](appendQuery)
         .updateMany(events.zipWithIndex.map(toRow_))
 
     val cio =

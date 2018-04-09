@@ -35,10 +35,10 @@ object App extends App {
 
   val tag = EventTag("test")
 
-  val journal = new PostgresEventJournal[IO, String, String](settings,
-                                                             EntityName("test"),
-                                                             Tagging.const(tag),
-                                                             stringSerializer)
+  val journal = PostgresEventJournal[IO](settings,
+                                         EntityName("test"),
+                                         Tagging.const[String](tag),
+                                         stringSerializer)
 
   def loadSeqNr(key: String): IO[Long] =
     journal
