@@ -6,13 +6,14 @@ import aecor.journal.pg.PostgresEventJournal.Serializer.TypeHint
 import aecor.journal.pg.PostgresEventJournal.{EntityName, Serializer}
 import aecor.testkit.EventJournal
 import cats.data.NonEmptyVector
-import cats.effect.Async
+import cats.effect.{Async, Timer}
 import cats.implicits._
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
 import fs2._
 import doobie.postgres.implicits._
+
 import scala.concurrent.duration.FiniteDuration
 /*
 CREATE TABLE public.events
@@ -60,7 +61,8 @@ object PostgresEventJournal {
                     serializer: Serializer[E])(
         implicit F: Async[F],
         encodeKey: KeyEncoder[K],
-        decodeKey: KeyDecoder[K]): PostgresEventJournal[F, K, E] =
+        decodeKey: KeyDecoder[K],
+        timer: Timer[F]): PostgresEventJournal[F, K, E] =
       new PostgresEventJournal(settings, entityName, tagging, serializer)
   }
 
@@ -74,7 +76,8 @@ final class PostgresEventJournal[F[_], K, E](
     tagging: Tagging[K],
     serializer: Serializer[E])(implicit F: Async[F],
                                encodeKey: KeyEncoder[K],
-                               decodeKey: KeyDecoder[K])
+                               decodeKey: KeyDecoder[K],
+                               timer: Timer[F])
     extends EventJournal[F, K, E] {
   import settings._
 
@@ -131,7 +134,7 @@ final class PostgresEventJournal[F[_], K, E](
       f: (S, E) => Folded[S]): F[Folded[S]] =
     (fr"select typeHint, bytes from"
       ++ Fragment.const(connectionSettings.tableName)
-      ++ fr"where entity = ${entityName.value} and key = ${encodeKey(key)} and seqNr > $offset")
+      ++ fr"where entity = ${entityName.value} and key = ${encodeKey(key)} and seqNr > $offset ORDER BY seqNr ASC")
       .query[(TypeHint, Array[Byte])]
       .stream
       .evalMap(deserializeF_)
@@ -151,21 +154,23 @@ final class PostgresEventJournal[F[_], K, E](
       .flatMap {
         case (x, Some(_)) => Stream.emit(x)
         case (x @ (latestOffset, _), None) =>
-          Stream.emit(x) ++
-            Stream
-              .every[F](pollingInterval)
-              .filter(identity)
-              .drop(1)
-              .take(1)
-              .flatMap(_ => eventsByTag(tag, latestOffset))
+          Stream
+            .emit(x)
+            .append(Stream
+              .eval(timer.sleep(pollingInterval)) >> eventsByTag(tag,
+                                                                 latestOffset))
+
       }
+      .append(Stream
+        .eval(timer.sleep(pollingInterval)) >> eventsByTag(tag, offset))
+
   }
 
   def currentEventsByTag(tag: EventTag,
                          offset: Long): Stream[F, (Long, EntityEvent[K, E])] =
     (fr"SELECT globalSeqNr, key, seqNr, typeHint, bytes FROM"
       ++ Fragment.const(connectionSettings.tableName)
-      ++ fr"WHERE entity = $entityName AND array_position(tags, ${tag.value} :: text) IS NOT NULL AND (globalSeqNr > $offset)")
+      ++ fr"WHERE entity = $entityName AND array_position(tags, ${tag.value} :: text) IS NOT NULL AND (globalSeqNr > $offset) ORDER BY globalSeqNr ASC")
       .query[(Long, K, Long, String, Array[Byte])]
       .stream
       .transact(xa)
