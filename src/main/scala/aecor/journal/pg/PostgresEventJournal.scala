@@ -147,23 +147,17 @@ final class PostgresEventJournal[F[_], K, E](
 
   def eventsByTag(tag: EventTag,
                   offset: Long): Stream[F, (Long, EntityEvent[K, E])] = {
-    (currentEventsByTag(tag, offset).map(_.some) ++ Stream.emit(none))
-      .scan(offset.asLeft[(Long, EntityEvent[K, E])]) {
-        case (_, Some(e)) =>
-          e.asRight
-        case (state, None) =>
-          state.flatMap(_._1.asLeft)
-      }
-      .drop(1)
+    currentEventsByTag(tag, offset).zipWithNext
       .flatMap {
-        case Right(x) => Stream.emit(x)
-        case Left(latestOffset) =>
-          Stream
-            .every[F](pollingInterval)
-            .filter(identity)
-            .drop(1)
-            .take(1)
-            .flatMap(_ => eventsByTag(tag, latestOffset))
+        case (x, Some(_)) => Stream.emit(x)
+        case (x @ (latestOffset, _), None) =>
+          Stream.emit(x) ++
+            Stream
+              .every[F](pollingInterval)
+              .filter(identity)
+              .drop(1)
+              .take(1)
+              .flatMap(_ => eventsByTag(tag, latestOffset))
       }
   }
 
