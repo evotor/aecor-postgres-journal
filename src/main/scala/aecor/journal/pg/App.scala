@@ -7,20 +7,20 @@ import aecor.journal.pg.PostgresEventJournal.{
   EntityName,
   Serializer
 }
-
 import cats.data.NonEmptyVector
 import cats.effect.IO
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import cats.implicits._
+
 object App extends App {
 
   val settings = PostgresEventJournal.Settings(
     connectionSettings = ConnectionSettings("localhost",
                                             5432,
                                             "postgres",
-                                            "events",
+                                            "app_event",
                                             "notxcain",
                                             "1"),
     pollingInterval = 1.second
@@ -70,6 +70,7 @@ object App extends App {
 
   def program =
     for {
+      _ <- journal.createTable
       _ <- runPar(
         Vector(emitEvents("2"),
                emitEvents("3"),

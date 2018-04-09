@@ -15,20 +15,6 @@ import fs2._
 import doobie.postgres.implicits._
 
 import scala.concurrent.duration.FiniteDuration
-/*
-CREATE TABLE public.events
-(
-globalSeqNr SERIAL NOT NULL,
-entity TEXT NOT NULL,
-key TEXT NOT NULL,
-seqNr INTEGER NOT NULL,
-typeHint TEXT NOT NULL,
-bytes BINARY NOT NULL,
-CONSTRAINT entity_events__pk PRIMARY KEY (entity, key, seqNr)
-);
-CREATE UNIQUE INDEX events_globalSeqNr_uindex ON public.events (globalSeqNr);
-CREATE UNIQUE INDEX events_entityEvent_uindex ON public.events (entity, key, seqNr)
- */
 
 object PostgresEventJournal {
   trait Serializer[A] {
@@ -91,8 +77,35 @@ final class PostgresEventJournal[F[_], K, E](
     connectionSettings.password
   )
 
+  def createTable: F[Unit] = xa.trans.apply {
+    for {
+      _ <- Update0(
+        s"""
+        CREATE TABLE IF NOT EXISTS ${connectionSettings.tableName} (
+          id BIGSERIAL,
+          entity TEXT NOT NULL,
+          key TEXT NOT NULL,
+          seq_nr INTEGER NOT NULL,
+          type_hint TEXT NOT NULL,
+          bytes BYTEA NOT NULL,
+          tags text[] NOT NULL
+        )
+        """,
+        none
+      ).run
+      _ <- Update0(
+        s"CREATE UNIQUE INDEX IF NOT EXISTS ${connectionSettings.tableName}_id_uindex ON ${connectionSettings.tableName} (id)",
+        none).run
+
+      _ <- Update0(
+        s"CREATE UNIQUE INDEX IF NOT EXISTS ${connectionSettings.tableName}_entity_key_seq_nr_uindex ON ${connectionSettings.tableName} (entity, key, seq_nr)",
+        none
+      ).run
+    } yield ()
+  }
+
   private val appendQuery =
-    s"insert into ${connectionSettings.tableName} (entity, key, seqNr, typeHint, bytes, tags) values (?, ?, ?, ?, ?, ?)"
+    s"INSERT INTO ${connectionSettings.tableName} (entity, key, seq_nr, type_hint, bytes, tags) VALUES (?, ?, ?, ?, ?, ?)"
 
   override def append(entityKey: K,
                       offset: Long,
@@ -127,17 +140,18 @@ final class PostgresEventJournal[F[_], K, E](
     cio.void.transact(xa)
   }
 
-  private val deserializeF_ =
-    (serializer.deserialize _).tupled.andThen(Async[ConnectionIO].fromEither)
+  private val deserialize_ =
+    (serializer.deserialize _).tupled
 
   override def foldById[S](key: K, offset: Long, zero: S)(
       f: (S, E) => Folded[S]): F[Folded[S]] =
-    (fr"select typeHint, bytes from"
+    (fr"SELECT type_hint, bytes FROM"
       ++ Fragment.const(connectionSettings.tableName)
-      ++ fr"where entity = ${entityName.value} and key = ${encodeKey(key)} and seqNr > $offset ORDER BY seqNr ASC")
+      ++ fr"WHERE entity = ${entityName.value} and key = ${encodeKey(key)} and seq_nr > $offset ORDER BY seq_nr ASC")
       .query[(TypeHint, Array[Byte])]
       .stream
-      .evalMap(deserializeF_)
+      .map(deserialize_)
+      .evalMap(AsyncConnectionIO.fromEither)
       .scan(Folded.next(zero))((acc, e) => acc.flatMap(f(_, e)))
       .takeWhile(_.isNext, takeFailure = true)
       .compile
@@ -168,9 +182,9 @@ final class PostgresEventJournal[F[_], K, E](
 
   def currentEventsByTag(tag: EventTag,
                          offset: Long): Stream[F, (Long, EntityEvent[K, E])] =
-    (fr"SELECT globalSeqNr, key, seqNr, typeHint, bytes FROM"
+    (fr"SELECT id, key, seq_nr, type_hint, bytes FROM"
       ++ Fragment.const(connectionSettings.tableName)
-      ++ fr"WHERE entity = $entityName AND array_position(tags, ${tag.value} :: text) IS NOT NULL AND (globalSeqNr > $offset) ORDER BY globalSeqNr ASC")
+      ++ fr"WHERE entity = $entityName AND array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id > $offset) ORDER BY id ASC")
       .query[(Long, K, Long, String, Array[Byte])]
       .stream
       .transact(xa)
