@@ -31,14 +31,16 @@ object PostgresEventJournal {
       Composite[String].imap(EntityName(_))(_.value)
   }
 
-  final case class ConnectionSettings(host: String,
-                                      port: Int,
-                                      databaseName: String,
-                                      tableName: String,
-                                      user: String,
-                                      password: String)
-  final case class Settings(connectionSettings: ConnectionSettings,
+  final case class Settings(connectionSettings: Settings.Connection,
                             pollingInterval: FiniteDuration)
+  object Settings {
+    final case class Connection(host: String,
+                                port: Int,
+                                databaseName: String,
+                                tableName: String,
+                                user: String,
+                                password: String)
+  }
 
   final class Builder[F[_]] {
     def apply[K, E](settings: PostgresEventJournal.Settings,

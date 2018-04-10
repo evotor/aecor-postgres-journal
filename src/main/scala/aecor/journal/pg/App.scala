@@ -2,27 +2,23 @@ package aecor.journal.pg
 
 import aecor.data.{EventTag, Folded, Tagging}
 import aecor.journal.pg.PostgresEventJournal.Serializer.TypeHint
-import aecor.journal.pg.PostgresEventJournal.{
-  ConnectionSettings,
-  EntityName,
-  Serializer
-}
+import aecor.journal.pg.PostgresEventJournal.{EntityName, Serializer}
 import cats.data.NonEmptyVector
 import cats.effect.IO
+import cats.implicits._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
-import cats.implicits._
 
 object App extends App {
 
   val settings = PostgresEventJournal.Settings(
-    connectionSettings = ConnectionSettings("localhost",
-                                            5432,
-                                            "postgres",
-                                            "app_event",
-                                            "notxcain",
-                                            "1"),
+    connectionSettings = PostgresEventJournal.Settings.Connection("localhost",
+                                                                  5432,
+                                                                  "postgres",
+                                                                  "app_event",
+                                                                  "notxcain",
+                                                                  "1"),
     pollingInterval = 1.second
   )
 
