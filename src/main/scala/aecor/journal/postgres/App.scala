@@ -1,8 +1,8 @@
-package aecor.journal.pg
+package aecor.journal.postgres
 
 import aecor.data.{EventTag, Folded, Tagging}
-import aecor.journal.pg.PostgresEventJournal.Serializer.TypeHint
-import aecor.journal.pg.PostgresEventJournal.{EntityName, Serializer}
+import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
+import aecor.journal.postgres.PostgresEventJournal.{EntityName, Serializer}
 import cats.data.NonEmptyVector
 import cats.effect.IO
 import cats.implicits._

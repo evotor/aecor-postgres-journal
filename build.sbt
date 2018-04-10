@@ -15,38 +15,67 @@ lazy val catsVersion = "1.1.0"
 
 
 libraryDependencies ++= Seq(
-  "io.aecor" %% "test-kit" % aecorVersion,
+  "io.aecor" %% "core" % aecorVersion,
   "org.tpolecat" %% "doobie-core"      % doobieVersion,
   "org.tpolecat" %% "doobie-hikari"    % doobieVersion,
   "org.tpolecat" %% "doobie-postgres"  % doobieVersion,
   "org.scalacheck" %% "scalacheck" % scalaCheckVersion % Test,
   "org.scalatest" %% "scalatest" % scalaTestVersion % Test,
+  "org.tpolecat" %% "doobie-scalatest"  % doobieVersion % Test,
   "com.github.alexarchambault" %% "scalacheck-shapeless_1.13" % scalaCheckShapelessVersion % Test,
   "org.typelevel" %% "cats-testkit" % catsVersion % Test
 )
 
-scalacOptions ++= commonScalacOptions
-addCompilerPlugin("org.spire-math" %% "kind-projector" % kindProjectorVersion)
-parallelExecution in Test := false
-scalacOptions in (Compile, doc) := (scalacOptions in (Compile, doc)).value.filter(_ != "-Xfatal-warnings")
-lazy val commonScalacOptions = Seq(
+scalacOptions ++= Seq(
   "-J-Xss16m",
   "-deprecation",
-  "-encoding",
-  "UTF-8",
+  "-encoding", "utf-8",
+  "-explaintypes",
   "-feature",
   "-language:existentials",
+  "-language:experimental.macros",
   "-language:higherKinds",
   "-language:implicitConversions",
-  "-language:experimental.macros",
   "-unchecked",
+  "-Xcheckinit",
   "-Xfatal-warnings",
-  "-Xlint",
+  "-Xfuture",
+  "-Xlint:adapted-args",
+  "-Xlint:by-name-right-associative",
+  "-Xlint:constant",
+  "-Xlint:delayedinit-select",
+  "-Xlint:doc-detached",
+  "-Xlint:inaccessible",
+  "-Xlint:infer-any",
+  "-Xlint:missing-interpolator",
+  "-Xlint:nullary-override",
+  "-Xlint:nullary-unit",
+  "-Xlint:option-implicit",
+  "-Xlint:package-object-classes",
+  "-Xlint:poly-implicit-overload",
+  "-Xlint:private-shadow",
+  "-Xlint:stars-align",
+  "-Xlint:type-parameter-shadow",
+  "-Xlint:unsound-match",
   "-Yno-adapted-args",
-  "-Ywarn-dead-code",
-  "-Ywarn-numeric-widen",
-  "-Ywarn-value-discard",
-  "-Ywarn-unused-import",
   "-Ypartial-unification",
+  "-Ywarn-dead-code",
+  "-Ywarn-extra-implicit",
+  "-Ywarn-inaccessible",
+  "-Ywarn-infer-any",
+  "-Ywarn-nullary-override",
+  "-Ywarn-nullary-unit",
+  "-Ywarn-numeric-widen",
+  "-Ywarn-unused:implicits",
+  "-Ywarn-unused:imports",
+  "-Ywarn-unused:locals",
+  "-Ywarn-unused:params",
+  "-Ywarn-unused:patvars",
+  "-Ywarn-unused:privates",
+  "-Ywarn-value-discard",
   "-Xsource:2.13"
 )
+addCompilerPlugin("org.spire-math" %% "kind-projector" % kindProjectorVersion)
+parallelExecution in Test := false
+scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings")
+

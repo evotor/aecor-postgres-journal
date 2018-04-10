@@ -1,10 +1,10 @@
-package aecor.journal.pg
+package aecor.journal.postgres
 
 import aecor.data._
 import aecor.encoding.{KeyDecoder, KeyEncoder}
-import aecor.journal.pg.PostgresEventJournal.Serializer.TypeHint
-import aecor.journal.pg.PostgresEventJournal.{EntityName, Serializer}
-import aecor.testkit.EventJournal
+import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
+import aecor.journal.postgres.PostgresEventJournal.{EntityName, Serializer}
+import aecor.runtime.EventJournal
 import cats.data.NonEmptyVector
 import cats.effect.{Async, Timer}
 import cats.implicits._
@@ -87,10 +87,10 @@ final class PostgresEventJournal[F[_], K, E](
           id BIGSERIAL,
           entity TEXT NOT NULL,
           key TEXT NOT NULL,
-          seq_nr INTEGER NOT NULL,
+          seq_nr INTEGER NOT NULL CHECK (seq_nr > 0),
           type_hint TEXT NOT NULL,
           bytes BYTEA NOT NULL,
-          tags text[] NOT NULL
+          tags TEXT[] NOT NULL
         )
         """,
         none
@@ -105,6 +105,11 @@ final class PostgresEventJournal[F[_], K, E](
       ).run
     } yield ()
   }
+
+  private[postgres] def dropTable: F[Unit] =
+    Update0(s"DROP TABLE ${connectionSettings.tableName}", none).run
+      .transact(xa)
+      .void
 
   private val appendQuery =
     s"INSERT INTO ${connectionSettings.tableName} (entity, key, seq_nr, type_hint, bytes, tags) VALUES (?, ?, ?, ?, ?, ?)"
