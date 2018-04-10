@@ -4,7 +4,7 @@ import aecor.data._
 import aecor.encoding.{KeyDecoder, KeyEncoder}
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.journal.postgres.PostgresEventJournal.{EntityName, Serializer}
-import aecor.runtime.EventJournal
+import aecor.runtime.{EventJournal, KeyValueStore}
 import cats.data.NonEmptyVector
 import cats.effect.{Async, Timer}
 import cats.implicits._
@@ -16,7 +16,7 @@ import doobie.postgres.implicits._
 
 import scala.concurrent.duration.FiniteDuration
 
-object PostgresEventJournal {
+object PostgresEventJournal extends OffsetStoreSupport {
   trait Serializer[A] {
     def serialize(a: A): (TypeHint, Array[Byte])
     def deserialize(typeHint: TypeHint,
@@ -95,6 +95,7 @@ final class PostgresEventJournal[F[_], K, E](
         """,
         none
       ).run
+
       _ <- Update0(
         s"CREATE UNIQUE INDEX IF NOT EXISTS ${connectionSettings.tableName}_id_uindex ON ${connectionSettings.tableName} (id)",
         none).run
@@ -132,17 +133,16 @@ final class PostgresEventJournal[F[_], K, E](
 
     val toRow_ = (toRow _).tupled
 
-    def insertOne(event: E) =
-      Update[Row](appendQuery).run(toRow(event, 0))
+    def insertOne =
+      Update[Row](appendQuery).run(toRow(events.head, 0))
 
-    def insertAll =
+    def insertMany =
       Update[Row](appendQuery)
         .updateMany(events.zipWithIndex.map(toRow_))
 
     val cio =
-      if (events.tail.isEmpty) insertOne(events.head)
-      else
-        insertAll
+      if (events.tail.isEmpty) insertOne
+      else insertMany
 
     cio.void.transact(xa)
   }
@@ -203,4 +203,7 @@ final class PostgresEventJournal[F[_], K, E](
       }
       .evalMap(F.fromEither)
 
+  def withOffsetStore(offsetStore: KeyValueStore[F, TagConsumer, Long])
+    : PostgresEventJournal.WithOffsetStore[F, K, E] =
+    new PostgresEventJournal.WithOffsetStore[F, K, E](this, offsetStore)
 }
