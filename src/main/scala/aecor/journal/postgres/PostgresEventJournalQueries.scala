@@ -2,9 +2,9 @@ package aecor.journal.postgres
 
 import aecor.data._
 import aecor.runtime.KeyValueStore
-import cats.{Functor, Monad}
-import fs2.Stream
+import cats.Functor
 import cats.implicits._
+import fs2.Stream
 
 object PostgresEventJournalQueries {
   final class WithOffsetStore[F[_], G[_]: Functor, K, E](
@@ -38,7 +38,7 @@ trait PostgresEventJournalQueries[F[_], K, E] {
   def currentEventsByTag(tag: EventTag,
                          offset: Long): Stream[F, (Long, EntityEvent[K, E])]
 
-  final def withOffsetStore[G[_]: Monad](
+  final def withOffsetStore[G[_]: Functor](
       offsetStore: KeyValueStore[G, TagConsumer, Long])
     : PostgresEventJournalQueries.WithOffsetStore[F, G, K, E] =
     new PostgresEventJournalQueries.WithOffsetStore(this, offsetStore)
