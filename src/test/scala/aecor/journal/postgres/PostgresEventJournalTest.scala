@@ -2,7 +2,7 @@ package aecor.journal.postgres
 
 import java.util.UUID
 
-import aecor.data.{EntityEvent, EventTag, Folded, Tagging}
+import aecor.data._
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.journal.postgres.PostgresEventJournal.{EntityName, Serializer}
 import cats.data.NonEmptyVector
@@ -10,6 +10,8 @@ import cats.effect.IO
 import org.postgresql.util.PSQLException
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 import cats.implicits._
+import doobie.util.transactor.Transactor
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
@@ -25,23 +27,26 @@ class PostgresEventJournalTest
                              bytes: Array[Byte]): Either[Throwable, String] =
       Right(new String(bytes, java.nio.charset.StandardCharsets.UTF_8))
   }
-  val settings = PostgresEventJournal.Settings(
-    connectionSettings = PostgresEventJournal.Settings.Connection(
-      "localhost",
-      5432,
-      "postgres",
-      s"test_${UUID.randomUUID().toString.replace('-', '_')}",
-      "notxcain",
-      "1"),
-    pollingInterval = 1.second
+
+  private val xa = Transactor.fromDriverManager[IO](
+    "org.postgresql.Driver",
+    s"jdbc:postgresql://localhost:5432/postgres",
+    "notxcain",
+    "1"
   )
 
   val tagging = Tagging.const[String](EventTag("test"))
-
-  val journal = PostgresEventJournal[IO](settings,
-                                         EntityName("test"),
-                                         tagging,
-                                         stringSerializer)
+  val journal = PostgresEventJournal(
+    xa,
+    PostgresEventJournal.Settings(
+      tableName = s"test_${UUID.randomUUID().toString.replace('-', '_')}",
+      pollingInterval = 1.second
+    ),
+    EntityName("test"),
+    tagging,
+    stringSerializer
+  )
+  val consumerId = ConsumerId("C1")
 
   override protected def beforeAll(): Unit = {
     journal.createTable.unsafeRunSync()
@@ -106,7 +111,8 @@ class PostgresEventJournalTest
   }
 
   test("Journal continuosly emits events by tag") {
-    val appendEvent = journal.append("b", 1L, NonEmptyVector.of("b2"))
+    val appendEvent =
+      journal.append("b", 1L, NonEmptyVector.of("b2"))
     val foldEvents = journal
       .eventsByTag(tagging.tag, 0L)
       .take(6)
@@ -132,7 +138,8 @@ class PostgresEventJournalTest
   }
 
   test("Journal continuosly emits events by tag from non zero offset") {
-    val appendEvent = journal.append("a", 4L, NonEmptyVector.of("a5"))
+    val appendEvent =
+      journal.append("a", 4L, NonEmptyVector.of("a5"))
     val foldEvents = journal
       .eventsByTag(tagging.tag, 6L)
       .take(2)
@@ -151,6 +158,26 @@ class PostgresEventJournalTest
     )
 
     assert(x.unsafeRunSync() == expected)
+  }
+
+  test("Journal correctly uses offset store for current events by tag") {
+    val x = for {
+      os <- TestOffsetStore(Map(TagConsumer(tagging.tag, consumerId) -> 3L))
+      runOnce = fs2.Stream
+        .force(
+          journal
+            .withOffsetStore(os)
+            .currentEventsByTag(tagging.tag, consumerId))
+        .evalMap(_.commit)
+        .as(1)
+        .compile
+        .fold(0)(_ + _)
+      processed1 <- runOnce
+      _ <- journal.append("a", 5L, NonEmptyVector.of("a6"))
+      processed2 <- runOnce
+    } yield (processed1, processed2)
+
+    assert(x.unsafeRunSync == ((4, 1)))
   }
 
   override protected def afterAll(): Unit = {
