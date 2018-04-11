@@ -3,25 +3,14 @@ package aecor.journal.postgres
 import aecor.data._
 import aecor.encoding.{KeyDecoder, KeyEncoder}
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
-import aecor.journal.postgres.internal.ConnectionIOPostgresEventJournal
+import aecor.journal.postgres.PostgresEventJournal.{EntityName, Serializer}
 import aecor.runtime.EventJournal
 import cats.data.NonEmptyVector
-import cats.effect.{IO, Timer}
-import cats.~>
-import doobie._
-import fs2._
-
-import aecor.data._
-import aecor.encoding.{KeyDecoder, KeyEncoder}
-import aecor.journal.postgres.PostgresEventJournal
-import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
-import aecor.journal.postgres.PostgresEventJournal.{EntityName, Serializer}
-import cats.data.NonEmptyVector
-import cats.effect.{IO, Timer}
+import cats.effect.{Async, Timer}
 import cats.implicits.{none, _}
-import doobie.postgres.implicits._
 import doobie._
 import doobie.implicits._
+import doobie.postgres.implicits._
 import fs2.Stream
 
 import scala.concurrent.duration.FiniteDuration
@@ -43,15 +32,12 @@ object PostgresEventJournal {
 
   final case class Settings(tableName: String, pollingInterval: FiniteDuration)
 
-  def apply[F[_], K, E](transactor: Transactor[F],
-                        settings: PostgresEventJournal.Settings,
-                        entityName: EntityName,
-                        tagging: Tagging[K],
-                        serializer: Serializer[E])(
-      implicit
-      encodeKey: KeyEncoder[K],
-      decodeKey: KeyDecoder[K],
-      timer: Timer[F]): PostgresEventJournal[F, K, E] =
+  def apply[F[_]: Timer: Async, K: KeyEncoder: KeyDecoder, E](
+      transactor: Transactor[F],
+      settings: PostgresEventJournal.Settings,
+      entityName: EntityName,
+      tagging: Tagging[K],
+      serializer: Serializer[E]): PostgresEventJournal[F, K, E] =
     new PostgresEventJournal(transactor,
                              settings,
                              entityName,
@@ -65,7 +51,7 @@ final class PostgresEventJournal[F[_], K, E](
     settings: PostgresEventJournal.Settings,
     entityName: EntityName,
     tagging: Tagging[K],
-    serializer: Serializer[E])(implicit
+    serializer: Serializer[E])(implicit F: Async[F],
                                encodeKey: KeyEncoder[K],
                                decodeKey: KeyDecoder[K],
                                timer: Timer[F])
@@ -153,8 +139,9 @@ final class PostgresEventJournal[F[_], K, E](
       ++ fr"WHERE entity = ${entityName.value} and key = ${encodeKey(key)} and seq_nr > $offset ORDER BY seq_nr ASC")
       .query[(TypeHint, Array[Byte])]
       .stream
+      .transact(xa)
       .map(deserialize_)
-      .evalMap(AsyncConnectionIO.fromEither)
+      .evalMap(F.fromEither)
       .scan(Folded.next(zero))((acc, e) => acc.flatMap(f(_, e)))
       .takeWhile(_.isNext, takeFailure = true)
       .compile
@@ -163,7 +150,6 @@ final class PostgresEventJournal[F[_], K, E](
         case Some(x) => x
         case None    => Folded.next(zero)
       }
-      .transact(xa)
 
   def currentEventsByTag(tag: EventTag,
                          offset: Long): Stream[F, (Long, EntityEvent[K, E])] =
@@ -172,14 +158,14 @@ final class PostgresEventJournal[F[_], K, E](
       ++ fr"WHERE entity = $entityName AND array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id > $offset) ORDER BY id ASC")
       .query[(Long, K, Long, String, Array[Byte])]
       .stream
+      .transact(xa)
       .map {
         case (eventOffset, key, seqNr, typeHint, bytes) =>
           serializer.deserialize(typeHint, bytes).map { a =>
             (eventOffset, EntityEvent(key, seqNr, a))
           }
       }
-      .evalMap(AsyncConnectionIO.fromEither)
-      .transact(xa)
+      .evalMap(F.fromEither)
 
   def eventsByTag(tag: EventTag,
                   offset: Long): Stream[F, (Long, EntityEvent[K, E])] = {

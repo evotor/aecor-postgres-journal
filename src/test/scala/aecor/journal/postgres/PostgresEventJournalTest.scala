@@ -2,7 +2,7 @@ package aecor.journal.postgres
 
 import java.util.UUID
 
-import aecor.data.{EntityEvent, EventTag, Folded, Tagging}
+import aecor.data._
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.journal.postgres.PostgresEventJournal.{EntityName, Serializer}
 import cats.data.NonEmptyVector
@@ -46,6 +46,7 @@ class PostgresEventJournalTest
     tagging,
     stringSerializer
   )
+  val consumerId = ConsumerId("C1")
 
   override protected def beforeAll(): Unit = {
     journal.createTable.unsafeRunSync()
@@ -157,6 +158,26 @@ class PostgresEventJournalTest
     )
 
     assert(x.unsafeRunSync() == expected)
+  }
+
+  test("Journal correctly uses offset store for current events by tag") {
+    val x = for {
+      os <- TestOffsetStore(Map(TagConsumer(tagging.tag, consumerId) -> 3L))
+      runOnce = fs2.Stream
+        .force(
+          journal
+            .withOffsetStore(os)
+            .currentEventsByTag(tagging.tag, consumerId))
+        .evalMap(_.commit)
+        .as(1)
+        .compile
+        .fold(0)(_ + _)
+      processed1 <- runOnce
+      _ <- journal.append("a", 5L, NonEmptyVector.of("a6"))
+      processed2 <- runOnce
+    } yield (processed1, processed2)
+
+    assert(x.unsafeRunSync == ((4, 1)))
   }
 
   override protected def afterAll(): Unit = {
