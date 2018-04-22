@@ -1,11 +1,11 @@
 package aecor.journal.postgres
 
 import aecor.data.TagConsumer
-import aecor.runtime.KeyValueStore
+import aecor.journal.postgres.PostgresEventJournalQueries.OffsetStore
 import cats.effect.IO
 
 object TestOffsetStore {
-  def apply(state: Map[TagConsumer, Long]): IO[TestOffsetStore] =
+  def apply(state: Map[TagConsumer, Offset]): IO[TestOffsetStore] =
     IO(
       new TestOffsetStore(
         scala.collection.concurrent.TrieMap(state.toVector: _*)))
@@ -13,11 +13,11 @@ object TestOffsetStore {
 }
 
 class TestOffsetStore(
-    store: scala.collection.concurrent.TrieMap[TagConsumer, Long])
-    extends KeyValueStore[IO, TagConsumer, Long] {
-  override def setValue(key: TagConsumer, value: Long): IO[Unit] =
+    store: scala.collection.concurrent.TrieMap[TagConsumer, Offset])
+    extends OffsetStore[IO] {
+  override def setValue(key: TagConsumer, value: Offset): IO[Unit] =
     IO(store.update(key, value))
 
-  override def getValue(key: TagConsumer): IO[Option[Long]] =
+  override def getValue(key: TagConsumer): IO[Option[Offset]] =
     IO(store.get(key))
 }

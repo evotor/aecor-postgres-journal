@@ -1,6 +1,8 @@
 name := "aecor-postgres-journal"
 
-version := "0.1"
+organization := "io.aecor"
+
+version := "0.1-SNAPSHOT"
 
 scalaVersion := "2.12.4"
 
@@ -79,3 +81,4 @@ addCompilerPlugin("org.spire-math" %% "kind-projector" % kindProjectorVersion)
 parallelExecution in Test := false
 scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings")
 
+publishMavenStyle := true

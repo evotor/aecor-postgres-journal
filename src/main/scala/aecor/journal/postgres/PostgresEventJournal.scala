@@ -3,7 +3,7 @@ package aecor.journal.postgres
 import aecor.data._
 import aecor.encoding.{KeyDecoder, KeyEncoder}
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
-import aecor.journal.postgres.PostgresEventJournal.{EntityName, Serializer}
+import aecor.journal.postgres.PostgresEventJournal.Serializer
 import aecor.runtime.EventJournal
 import cats.data.NonEmptyVector
 import cats.effect.{Async, Timer}
@@ -24,32 +24,21 @@ object PostgresEventJournal {
   object Serializer {
     type TypeHint = String
   }
-  final case class EntityName(value: String) extends AnyVal
-  object EntityName {
-    implicit val composite: Composite[EntityName] =
-      Composite[String].imap(EntityName(_))(_.value)
-  }
 
   final case class Settings(tableName: String, pollingInterval: FiniteDuration)
 
   def apply[F[_]: Timer: Async, K: KeyEncoder: KeyDecoder, E](
       transactor: Transactor[F],
       settings: PostgresEventJournal.Settings,
-      entityName: EntityName,
       tagging: Tagging[K],
       serializer: Serializer[E]): PostgresEventJournal[F, K, E] =
-    new PostgresEventJournal(transactor,
-                             settings,
-                             entityName,
-                             tagging,
-                             serializer)
+    new PostgresEventJournal(transactor, settings, tagging, serializer)
 
 }
 
 final class PostgresEventJournal[F[_], K, E](
     xa: Transactor[F],
     settings: PostgresEventJournal.Settings,
-    entityName: EntityName,
     tagging: Tagging[K],
     serializer: Serializer[E])(implicit F: Async[F],
                                encodeKey: KeyEncoder[K],
@@ -68,7 +57,6 @@ final class PostgresEventJournal[F[_], K, E](
         s"""
         CREATE TABLE IF NOT EXISTS $tableName (
           id BIGSERIAL,
-          entity TEXT NOT NULL,
           key TEXT NOT NULL,
           seq_nr INTEGER NOT NULL CHECK (seq_nr > 0),
           type_hint TEXT NOT NULL,
@@ -84,7 +72,7 @@ final class PostgresEventJournal[F[_], K, E](
         none).run
 
       _ <- Update0(
-        s"CREATE UNIQUE INDEX IF NOT EXISTS ${tableName}_entity_key_seq_nr_uindex ON $tableName (entity, key, seq_nr)",
+        s"CREATE UNIQUE INDEX IF NOT EXISTS ${tableName}_key_seq_nr_uindex ON $tableName (key, seq_nr)",
         none
       ).run
     } yield ()
@@ -95,19 +83,18 @@ final class PostgresEventJournal[F[_], K, E](
     Update0(s"DROP TABLE $tableName", none).run.void.transact(xa)
 
   private val appendQuery =
-    s"INSERT INTO $tableName (entity, key, seq_nr, type_hint, bytes, tags) VALUES (?, ?, ?, ?, ?, ?)"
+    s"INSERT INTO $tableName (key, seq_nr, type_hint, bytes, tags) VALUES (?, ?, ?, ?, ?)"
 
   override def append(entityKey: K,
                       offset: Long,
                       events: NonEmptyVector[E]): F[Unit] = {
 
-    type Row = (EntityName, K, Long, String, Array[Byte], List[String])
+    type Row = (K, Long, String, Array[Byte], List[String])
 
     def toRow(e: E, idx: Int): Row = {
       val (typeHint, bytes) = serializer.serialize(e)
-      (entityName,
-       entityKey,
-       idx + offset + 1,
+      (entityKey,
+       idx + offset,
        typeHint,
        bytes,
        tagging.tag(entityKey).map(_.value).toList)
@@ -136,7 +123,7 @@ final class PostgresEventJournal[F[_], K, E](
       f: (S, E) => Folded[S]): F[Folded[S]] =
     (fr"SELECT type_hint, bytes FROM"
       ++ Fragment.const(tableName)
-      ++ fr"WHERE entity = ${entityName.value} and key = ${encodeKey(key)} and seq_nr > $offset ORDER BY seq_nr ASC")
+      ++ fr"WHERE key = ${encodeKey(key)} and seq_nr >= $offset ORDER BY seq_nr ASC")
       .query[(TypeHint, Array[Byte])]
       .stream
       .transact(xa)
@@ -151,38 +138,24 @@ final class PostgresEventJournal[F[_], K, E](
         case None    => Folded.next(zero)
       }
 
-  def currentEventsByTag(tag: EventTag,
-                         offset: Long): Stream[F, (Long, EntityEvent[K, E])] =
+  override protected val sleepBeforePolling: F[Unit] =
+    timer.sleep(pollingInterval)
+
+  def currentEventsByTag(
+      tag: EventTag,
+      offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] =
     (fr"SELECT id, key, seq_nr, type_hint, bytes FROM"
       ++ Fragment.const(tableName)
-      ++ fr"WHERE entity = $entityName AND array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id > $offset) ORDER BY id ASC")
+      ++ fr"WHERE array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id >= ${offset.value}) ORDER BY id ASC")
       .query[(Long, K, Long, String, Array[Byte])]
       .stream
       .transact(xa)
       .map {
         case (eventOffset, key, seqNr, typeHint, bytes) =>
           serializer.deserialize(typeHint, bytes).map { a =>
-            (eventOffset, EntityEvent(key, seqNr, a))
+            (Offset(eventOffset), EntityEvent(key, seqNr, a))
           }
       }
       .evalMap(F.fromEither)
-
-  def eventsByTag(tag: EventTag,
-                  offset: Long): Stream[F, (Long, EntityEvent[K, E])] = {
-    currentEventsByTag(tag, offset).zipWithNext
-      .flatMap {
-        case (x, Some(_)) => Stream.emit(x)
-        case (x @ (latestOffset, _), None) =>
-          Stream
-            .emit(x)
-            .append(Stream
-              .eval(timer.sleep(pollingInterval)) >> eventsByTag(tag,
-                                                                 latestOffset))
-
-      }
-      .append(Stream
-        .eval(timer.sleep(pollingInterval)) >> eventsByTag(tag, offset))
-
-  }
 
 }

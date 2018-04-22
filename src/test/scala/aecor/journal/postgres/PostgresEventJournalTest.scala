@@ -4,7 +4,7 @@ import java.util.UUID
 
 import aecor.data._
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
-import aecor.journal.postgres.PostgresEventJournal.{EntityName, Serializer}
+import aecor.journal.postgres.PostgresEventJournal.Serializer
 import cats.data.NonEmptyVector
 import cats.effect.IO
 import org.postgresql.util.PSQLException
@@ -42,7 +42,6 @@ class PostgresEventJournalTest
       tableName = s"test_${UUID.randomUUID().toString.replace('-', '_')}",
       pollingInterval = 1.second
     ),
-    EntityName("test"),
     tagging,
     stringSerializer
   )
@@ -54,8 +53,8 @@ class PostgresEventJournalTest
 
   test("Journal appends and folds events from zero offset") {
     val x = for {
-      _ <- journal.append("a", 0L, NonEmptyVector.of("1", "2"))
-      folded <- journal.foldById("a", 0L, Vector.empty[String])((acc, e) =>
+      _ <- journal.append("a", 1L, NonEmptyVector.of("1", "2"))
+      folded <- journal.foldById("a", 1L, Vector.empty[String])((acc, e) =>
         Folded.next(acc :+ e))
     } yield folded
 
@@ -64,8 +63,8 @@ class PostgresEventJournalTest
 
   test("Journal appends and folds events from non-zero offset") {
     val x = for {
-      _ <- journal.append("a", 2L, NonEmptyVector.of("3"))
-      folded <- journal.foldById("a", 1L, Vector.empty[String])((acc, e) =>
+      _ <- journal.append("a", 3L, NonEmptyVector.of("3"))
+      folded <- journal.foldById("a", 2L, Vector.empty[String])((acc, e) =>
         Folded.next(acc :+ e))
     } yield folded
 
@@ -73,7 +72,7 @@ class PostgresEventJournalTest
   }
 
   test("Journal rejects append at existing offset") {
-    val x = journal.append("a", 2L, NonEmptyVector.of("4"))
+    val x = journal.append("a", 3L, NonEmptyVector.of("4"))
     intercept[PSQLException] {
       x.unsafeRunSync()
     }
@@ -81,43 +80,47 @@ class PostgresEventJournalTest
 
   test("Journal emits current events by tag") {
     val x = for {
-      _ <- journal.append("b", 0L, NonEmptyVector.of("b1"))
-      _ <- journal.append("a", 3L, NonEmptyVector.of("a4"))
+      _ <- journal.append("b", 1L, NonEmptyVector.of("b1"))
+      _ <- journal.append("a", 4L, NonEmptyVector.of("a4"))
       folded <- journal
-        .currentEventsByTag(tagging.tag, 0L)
+        .currentEventsByTag(tagging.tag, Offset(0L))
         .compile
-        .fold(Vector.empty[(Long, EntityEvent[String, String])])(_ :+ _)
+        .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
     } yield folded
 
-    val expected = Vector((1L, EntityEvent("a", 1, "1")),
-                          (2L, EntityEvent("a", 2, "2")),
-                          (3L, EntityEvent("a", 3, "3")),
-                          (5L, EntityEvent("b", 1, "b1")),
-                          (6L, EntityEvent("a", 4, "a4")))
+    val expected = Vector(
+      (Offset(1L), EntityEvent("a", 1, "1")),
+      (Offset(2L), EntityEvent("a", 2, "2")),
+      (Offset(3L), EntityEvent("a", 3, "3")),
+      (Offset(5L), EntityEvent("b", 1, "b1")),
+      (Offset(6L), EntityEvent("a", 4, "a4"))
+    )
 
     assert(x.unsafeRunSync() == expected)
   }
 
   test("Journal emits current events by tag from non zero offset") {
     val x = journal
-      .currentEventsByTag(tagging.tag, 3L)
+      .currentEventsByTag(tagging.tag, Offset(3L))
       .compile
-      .fold(Vector.empty[(Long, EntityEvent[String, String])])(_ :+ _)
+      .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
 
     val expected =
-      Vector((5L, EntityEvent("b", 1, "b1")), (6L, EntityEvent("a", 4, "a4")))
+      Vector((Offset(3L), EntityEvent("a", 3, "3")),
+             (Offset(5L), EntityEvent("b", 1, "b1")),
+             (Offset(6L), EntityEvent("a", 4, "a4")))
 
     assert(x.unsafeRunSync() == expected)
   }
 
   test("Journal continuosly emits events by tag") {
     val appendEvent =
-      journal.append("b", 1L, NonEmptyVector.of("b2"))
+      journal.append("b", 2L, NonEmptyVector.of("b2"))
     val foldEvents = journal
-      .eventsByTag(tagging.tag, 0L)
+      .eventsByTag(tagging.tag, Offset(0L))
       .take(6)
       .compile
-      .fold(Vector.empty[(Long, EntityEvent[String, String])])(_ :+ _)
+      .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
 
     val x = for {
       fiber <- foldEvents.start
@@ -126,25 +129,25 @@ class PostgresEventJournalTest
     } yield out
 
     val expected = Vector(
-      (1L, EntityEvent("a", 1l, "1")),
-      (2L, EntityEvent("a", 2l, "2")),
-      (3L, EntityEvent("a", 3l, "3")),
-      (5L, EntityEvent("b", 1l, "b1")),
-      (6L, EntityEvent("a", 4l, "a4")),
-      (7L, EntityEvent("b", 2l, "b2"))
+      (Offset(1L), EntityEvent("a", 1l, "1")),
+      (Offset(2L), EntityEvent("a", 2l, "2")),
+      (Offset(3L), EntityEvent("a", 3l, "3")),
+      (Offset(5L), EntityEvent("b", 1l, "b1")),
+      (Offset(6L), EntityEvent("a", 4l, "a4")),
+      (Offset(7L), EntityEvent("b", 2l, "b2"))
     )
 
     assert(x.unsafeRunSync() == expected)
   }
 
-  test("Journal continuosly emits events by tag from non zero offset") {
+  test("Journal continuosly emits events by tag from non zero offset inclusive") {
     val appendEvent =
-      journal.append("a", 4L, NonEmptyVector.of("a5"))
+      journal.append("a", 5L, NonEmptyVector.of("a5"))
     val foldEvents = journal
-      .eventsByTag(tagging.tag, 6L)
+      .eventsByTag(tagging.tag, Offset(7L))
       .take(2)
       .compile
-      .fold(Vector.empty[(Long, EntityEvent[String, String])])(_ :+ _)
+      .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
 
     val x = for {
       fiber <- foldEvents.start
@@ -153,8 +156,8 @@ class PostgresEventJournalTest
     } yield out
 
     val expected = Vector(
-      (7L, EntityEvent("b", 2l, "b2")),
-      (8L, EntityEvent("a", 5l, "a5"))
+      (Offset(7L), EntityEvent("b", 2l, "b2")),
+      (Offset(8L), EntityEvent("a", 5l, "a5"))
     )
 
     assert(x.unsafeRunSync() == expected)
@@ -162,7 +165,8 @@ class PostgresEventJournalTest
 
   test("Journal correctly uses offset store for current events by tag") {
     val x = for {
-      os <- TestOffsetStore(Map(TagConsumer(tagging.tag, consumerId) -> 3L))
+      os <- TestOffsetStore(
+        Map(TagConsumer(tagging.tag, consumerId) -> Offset(3L)))
       runOnce = fs2.Stream
         .force(
           journal
@@ -173,7 +177,7 @@ class PostgresEventJournalTest
         .compile
         .fold(0)(_ + _)
       processed1 <- runOnce
-      _ <- journal.append("a", 5L, NonEmptyVector.of("a6"))
+      _ <- journal.append("a", 6L, NonEmptyVector.of("a6"))
       processed2 <- runOnce
     } yield (processed1, processed2)
 
