@@ -1,3 +1,4 @@
+
 name := "aecor-postgres-journal"
 
 organization := "io.aecor"
@@ -19,7 +20,6 @@ lazy val catsVersion = "1.1.0"
 libraryDependencies ++= Seq(
   "io.aecor" %% "core" % aecorVersion,
   "org.tpolecat" %% "doobie-core"      % doobieVersion,
-  "org.tpolecat" %% "doobie-hikari"    % doobieVersion,
   "org.tpolecat" %% "doobie-postgres"  % doobieVersion,
   "org.scalacheck" %% "scalacheck" % scalaCheckVersion % Test,
   "org.scalatest" %% "scalatest" % scalaTestVersion % Test,
@@ -82,3 +82,17 @@ parallelExecution in Test := false
 scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings")
 
 publishMavenStyle := true
+
+releaseCrossBuild := true
+
+releaseCommitMessage := s"Set version to ${if (releaseUseGlobalVersion.value) (version in ThisBuild).value
+else version.value}"
+releaseVersionBump := sbtrelease.Version.Bump.Minor
+publishTo := {
+  val nexus = "http://nexus.market.local/repository/maven-"
+  if (isSnapshot.value)
+    Some("snapshots" at nexus + "snapshots/")
+  else
+    Some("releases" at nexus + "releases/")
+}
+credentials += Credentials(Path.userHome / ".m2" / "nexus-market-local.credentials")
