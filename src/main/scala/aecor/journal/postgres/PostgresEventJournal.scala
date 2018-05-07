@@ -141,12 +141,18 @@ final class PostgresEventJournal[F[_], K, E](
   override protected val sleepBeforePolling: F[Unit] =
     timer.sleep(pollingInterval)
 
+  /**
+    * Streams all existing events tagged with tag, starting from offset exclusive
+    * @param tag - tag to be used as a filter
+    * @param offset - offset to start from, exclusive
+    * @return - a stream of events which terminates when reaches the last existing event.
+    */
   def currentEventsByTag(
       tag: EventTag,
       offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] =
     (fr"SELECT id, key, seq_nr, type_hint, bytes FROM"
       ++ Fragment.const(tableName)
-      ++ fr"WHERE array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id >= ${offset.value}) ORDER BY id ASC FOR UPDATE")
+      ++ fr"WHERE array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id > ${offset.value}) ORDER BY id ASC FOR UPDATE")
       .query[(Long, K, Long, String, Array[Byte])]
       .stream
       .transact(xa)

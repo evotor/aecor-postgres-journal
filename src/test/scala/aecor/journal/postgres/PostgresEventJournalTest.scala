@@ -83,7 +83,7 @@ class PostgresEventJournalTest
       _ <- journal.append("b", 1L, NonEmptyVector.of("b1"))
       _ <- journal.append("a", 4L, NonEmptyVector.of("a4"))
       folded <- journal
-        .currentEventsByTag(tagging.tag, Offset(0L))
+        .currentEventsByTag(tagging.tag, Offset.zero)
         .compile
         .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
     } yield folded
@@ -101,7 +101,7 @@ class PostgresEventJournalTest
 
   test("Journal emits current events by tag from non zero offset") {
     val x = journal
-      .currentEventsByTag(tagging.tag, Offset(3L))
+      .currentEventsByTag(tagging.tag, Offset(2L))
       .compile
       .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
 
@@ -117,7 +117,7 @@ class PostgresEventJournalTest
     val appendEvent =
       journal.append("b", 2L, NonEmptyVector.of("b2"))
     val foldEvents = journal
-      .eventsByTag(tagging.tag, Offset(0L))
+      .eventsByTag(tagging.tag, Offset.zero)
       .take(6)
       .compile
       .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
@@ -140,11 +140,12 @@ class PostgresEventJournalTest
     assert(x.unsafeRunSync() == expected)
   }
 
-  test("Journal continuosly emits events by tag from non zero offset inclusive") {
+  test(
+    "Journal continuously emits events by tag from non zero offset inclusive") {
     val appendEvent =
       journal.append("a", 5L, NonEmptyVector.of("a5"))
     val foldEvents = journal
-      .eventsByTag(tagging.tag, Offset(7L))
+      .eventsByTag(tagging.tag, Offset(6L))
       .take(2)
       .compile
       .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
@@ -165,8 +166,14 @@ class PostgresEventJournalTest
 
   test("Journal correctly uses offset store for current events by tag") {
     val x = for {
-      os <- TestOffsetStore(
-        Map(TagConsumer(tagging.tag, consumerId) -> Offset(3L)))
+      offset <- journal
+        .currentEventsByTag(tagging.tag, Offset.zero)
+        .take(3)
+        .map(_._1)
+        .compile
+        .last
+        .map(_.getOrElse(Offset.zero))
+      os <- TestOffsetStore(Map(TagConsumer(tagging.tag, consumerId) -> offset))
       runOnce = fs2.Stream
         .force(
           journal

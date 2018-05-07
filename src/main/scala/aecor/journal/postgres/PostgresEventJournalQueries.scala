@@ -18,7 +18,7 @@ object PostgresEventJournalQueries {
                          Offset) => Stream[F, (Offset, EntityEvent[K, E])])
       : G[Stream[F, Committable[G, (Offset, EntityEvent[K, E])]]] =
       offsetStore.getValue(tagConsumer).map { committedOffset =>
-        val effectiveOffset = committedOffset.getOrElse(Offset.zero).increment
+        val effectiveOffset = committedOffset.getOrElse(Offset.zero)
         underlying(tagConsumer.tag, effectiveOffset)
           .map {
             case x @ (offset, _) =>
@@ -49,8 +49,7 @@ trait PostgresEventJournalQueries[F[_], K, E] {
           Stream
             .emit(x)
             .append(Stream
-              .eval(sleepBeforePolling) >> eventsByTag(tag,
-                                                       latestOffset.increment))
+              .eval(sleepBeforePolling) >> eventsByTag(tag, latestOffset))
 
       }
       .append(Stream
