@@ -7,7 +7,7 @@ scalaVersion := "2.12.4"
 
 
 lazy val kindProjectorVersion = "0.9.4"
-lazy val aecorVersion = "0.17.0-SNAPSHOT"
+lazy val aecorVersion = "0.17.0"
 lazy val doobieVersion = "0.5.2"
 lazy val scalaCheckVersion = "1.13.4"
 lazy val scalaTestVersion = "3.0.1"
