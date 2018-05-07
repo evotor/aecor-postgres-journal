@@ -3,8 +3,6 @@ name := "aecor-postgres-journal"
 
 organization := "io.aecor"
 
-version := "0.1-SNAPSHOT"
-
 scalaVersion := "2.12.4"
 
 
