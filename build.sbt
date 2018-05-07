@@ -14,6 +14,9 @@ lazy val scalaTestVersion = "3.0.1"
 lazy val scalaCheckShapelessVersion = "1.1.4"
 lazy val catsVersion = "1.1.0"
 
+resolvers ++= Seq(
+  Resolver.sonatypeRepo("public")
+)
 
 libraryDependencies ++= Seq(
   "io.aecor" %% "core" % aecorVersion,
