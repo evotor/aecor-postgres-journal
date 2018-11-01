@@ -5,7 +5,7 @@ import aecor.encoding.{KeyDecoder, KeyEncoder}
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.journal.postgres.PostgresEventJournal.Serializer
 import aecor.runtime.EventJournal
-import cats.data.NonEmptyVector
+import cats.data.NonEmptyChain
 import cats.effect.{Async, Timer}
 import cats.implicits.{none, _}
 import doobie._
@@ -48,8 +48,10 @@ final class PostgresEventJournal[F[_], K, E](
     with PostgresEventJournalQueries[F, K, E] {
   import settings._
 
-  implicit val keyComposite: Composite[K] = Composite[String].imap(s =>
-    decodeKey(s).getOrElse(throw new Exception("")))(encodeKey(_))
+  implicit val keyWrite: Write[K] = Write[String].contramap(encodeKey(_))
+  implicit val keyRead: Read[K] = Read[String].map(s =>
+    decodeKey(s).getOrElse(throw new Exception("Failed to decode key")))
+
 
   private def createTableCIO =
     for {
@@ -87,7 +89,7 @@ final class PostgresEventJournal[F[_], K, E](
 
   override def append(entityKey: K,
                       offset: Long,
-                      events: NonEmptyVector[E]): F[Unit] = {
+                      events: NonEmptyChain[E]): F[Unit] = {
 
     type Row = (K, Long, String, Array[Byte], List[String])
 

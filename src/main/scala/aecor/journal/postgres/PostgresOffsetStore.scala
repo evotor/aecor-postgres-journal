@@ -44,6 +44,11 @@ final class PostgresOffsetStore(tableName: String)
       .option
       .map(_.map(Offset(_)))
 
+  override def deleteValue(key: TagConsumer): ConnectionIO[Unit] =
+    (fr"DELETE FROM"
+      ++ Fragment.const(tableName)
+      ++ fr"WHERE tag = ${key.tag.value} AND consumer_id = ${key.consumerId.value}")
+      .update.run.void
 }
 
 object PostgresOffsetStore {

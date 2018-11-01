@@ -5,20 +5,21 @@ import java.util.UUID
 import aecor.data._
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.journal.postgres.PostgresEventJournal.Serializer
-import cats.data.NonEmptyVector
+import cats.data.NonEmptyChain
 import cats.effect.IO
 import org.postgresql.util.PSQLException
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 import cats.implicits._
 import doobie.util.transactor.Transactor
 
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 class PostgresEventJournalTest
     extends FunSuite
     with Matchers
     with BeforeAndAfterAll {
+  implicit val contextShift = IO.contextShift(scala.concurrent.ExecutionContext.global)
+  implicit val timer = IO.timer(scala.concurrent.ExecutionContext.global)
   val stringSerializer: Serializer[String] = new Serializer[String] {
     override def serialize(a: String): (TypeHint, Array[Byte]) =
       ("", a.getBytes(java.nio.charset.StandardCharsets.UTF_8))
@@ -31,8 +32,8 @@ class PostgresEventJournalTest
   private val xa = Transactor.fromDriverManager[IO](
     "org.postgresql.Driver",
     s"jdbc:postgresql://localhost:5432/postgres",
-    "notxcain",
-    "1"
+    "user",
+    ""
   )
 
   val tagging = Tagging.const[String](EventTag("test"))
@@ -53,7 +54,7 @@ class PostgresEventJournalTest
 
   test("Journal appends and folds events from zero offset") {
     val x = for {
-      _ <- journal.append("a", 1L, NonEmptyVector.of("1", "2"))
+      _ <- journal.append("a", 1L, NonEmptyChain("1", "2"))
       folded <- journal.foldById("a", 1L, Vector.empty[String])((acc, e) =>
         Folded.next(acc :+ e))
     } yield folded
@@ -63,7 +64,7 @@ class PostgresEventJournalTest
 
   test("Journal appends and folds events from non-zero offset") {
     val x = for {
-      _ <- journal.append("a", 3L, NonEmptyVector.of("3"))
+      _ <- journal.append("a", 3L, NonEmptyChain("3"))
       folded <- journal.foldById("a", 2L, Vector.empty[String])((acc, e) =>
         Folded.next(acc :+ e))
     } yield folded
@@ -72,7 +73,7 @@ class PostgresEventJournalTest
   }
 
   test("Journal rejects append at existing offset") {
-    val x = journal.append("a", 3L, NonEmptyVector.of("4"))
+    val x = journal.append("a", 3L, NonEmptyChain("4"))
     intercept[PSQLException] {
       x.unsafeRunSync()
     }
@@ -80,8 +81,8 @@ class PostgresEventJournalTest
 
   test("Journal emits current events by tag") {
     val x = for {
-      _ <- journal.append("b", 1L, NonEmptyVector.of("b1"))
-      _ <- journal.append("a", 4L, NonEmptyVector.of("a4"))
+      _ <- journal.append("b", 1L, NonEmptyChain("b1"))
+      _ <- journal.append("a", 4L, NonEmptyChain("a4"))
       folded <- journal
         .currentEventsByTag(tagging.tag, Offset.zero)
         .compile
@@ -115,7 +116,7 @@ class PostgresEventJournalTest
 
   test("Journal continuosly emits events by tag") {
     val appendEvent =
-      journal.append("b", 2L, NonEmptyVector.of("b2"))
+      journal.append("b", 2L, NonEmptyChain("b2"))
     val foldEvents = journal
       .eventsByTag(tagging.tag, Offset.zero)
       .take(6)
@@ -143,7 +144,7 @@ class PostgresEventJournalTest
   test(
     "Journal continuously emits events by tag from non zero offset inclusive") {
     val appendEvent =
-      journal.append("a", 5L, NonEmptyVector.of("a5"))
+      journal.append("a", 5L, NonEmptyChain("a5"))
     val foldEvents = journal
       .eventsByTag(tagging.tag, Offset(6L))
       .take(2)
@@ -184,7 +185,7 @@ class PostgresEventJournalTest
         .compile
         .fold(0)(_ + _)
       processed1 <- runOnce
-      _ <- journal.append("a", 6L, NonEmptyVector.of("a6"))
+      _ <- journal.append("a", 6L, NonEmptyChain("a6"))
       processed2 <- runOnce
     } yield (processed1, processed2)
 

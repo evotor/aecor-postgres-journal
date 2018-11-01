@@ -20,4 +20,6 @@ class TestOffsetStore(
 
   override def getValue(key: TagConsumer): IO[Option[Offset]] =
     IO(store.get(key))
+
+  override def deleteValue(key: TagConsumer): IO[Unit] = IO(store -= key)
 }

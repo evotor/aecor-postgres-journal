@@ -12,11 +12,13 @@ class PostgresOffsetStoreTest
     extends FunSuite
     with Matchers
     with BeforeAndAfterAll {
+  implicit val contextShift = IO.contextShift(scala.concurrent.ExecutionContext.global)
+  implicit val timer = IO.timer(scala.concurrent.ExecutionContext.global)
   private val xa = Transactor.fromDriverManager[IO](
     "org.postgresql.Driver",
     s"jdbc:postgresql://localhost:5432/postgres",
-    "notxcain",
-    "1"
+    "user",
+    ""
   )
   val store = PostgresOffsetStore(
     s"offset_test_${UUID.randomUUID().toString.replace('-', '_')}")
@@ -34,6 +36,18 @@ class PostgresOffsetStoreTest
     } yield (out1, out2)
 
     assert(program.unsafeRunSync() == ((Some(offset1), Some(offset2))))
+  }
+
+  test("Stores and deletes offsets") {
+    val offset1 = Offset(100500L)
+    val program = for {
+      _ <- store.setValue(tagConsumer, offset1).transact(xa)
+      out1 <- store.getValue(tagConsumer).transact(xa)
+      _ <- store.deleteValue(tagConsumer).transact(xa)
+      out2 <- store.getValue(tagConsumer).transact(xa)
+    } yield (out1, out2)
+
+    assert(program.unsafeRunSync() == ((Some(offset1), None)))
   }
 
   override protected def beforeAll(): Unit = {
