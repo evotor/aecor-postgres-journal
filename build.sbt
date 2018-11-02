@@ -8,7 +8,7 @@ organization := "io.aecor"
 scalaVersion := "2.12.4"
 
 lazy val kindProjectorVersion = "0.9.7"
-lazy val aecorVersion = "0.18.0-M1"
+lazy val aecorVersion = "0.18.0-M2-next"
 lazy val doobieVersion = "0.6.0"
 lazy val scalaCheckVersion = "1.13.4"
 lazy val scalaTestVersion = "3.0.1"
@@ -93,6 +93,7 @@ releaseCrossBuild := true
 releaseCommitMessage := s"Set version to ${if (releaseUseGlobalVersion.value) (version in ThisBuild).value
 else version.value}"
 releaseVersionBump := sbtrelease.Version.Bump.Minor
+
 publishTo := {
   val nexus = "http://nexus.market.local/repository/maven-"
   if (isSnapshot.value)
@@ -113,13 +114,6 @@ publishMavenStyle := true
 publishArtifact in Test := false
 pomIncludeRepository := { _ =>
   false
-}
-publishTo := {
-  val nexus = "https://oss.sonatype.org/"
-  if (isSnapshot.value)
-    Some("snapshots" at nexus + "content/repositories/snapshots")
-  else
-    Some("releases" at nexus + "service/local/staging/deploy/maven2")
 }
 autoAPIMappings := true
 scmInfo := Some(
@@ -146,6 +140,6 @@ releaseProcess := Seq[ReleaseStep](
   publishArtifacts,
   setNextVersion,
   commitNextVersion,
-  ReleaseStep(action = "sonatypeReleaseAll" :: _),
+//  ReleaseStep(action = "sonatypeReleaseAll" :: _),
   pushChanges
 )
