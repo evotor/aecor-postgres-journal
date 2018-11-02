@@ -1,10 +1,10 @@
-package aecor.journal.postgres
+package aecornext.journal.postgres
 
-import aecor.data._
-import aecor.encoding.{KeyDecoder, KeyEncoder}
-import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
-import aecor.journal.postgres.PostgresEventJournal.Serializer
-import aecor.runtime.EventJournal
+import aecornext.data._
+import aecornext.encoding.{KeyDecoder, KeyEncoder}
+import aecornext.journal.postgres.PostgresEventJournal.Serializer.TypeHint
+import aecornext.journal.postgres.PostgresEventJournal.Serializer
+import aecornext.runtime.EventJournal
 import cats.data.NonEmptyChain
 import cats.effect.{Async, Timer}
 import cats.implicits.{none, _}
@@ -12,7 +12,8 @@ import doobie._
 import doobie.implicits._
 import doobie.postgres.implicits._
 import fs2.Stream
-
+import Meta.StringMeta
+import scala.reflect.runtime.universe.TypeTag
 import scala.concurrent.duration.FiniteDuration
 
 object PostgresEventJournal {
@@ -27,7 +28,7 @@ object PostgresEventJournal {
 
   final case class Settings(tableName: String, pollingInterval: FiniteDuration)
 
-  def apply[F[_]: Timer: Async, K: KeyEncoder: KeyDecoder, E](
+  def apply[F[_]: Timer: Async, K: KeyEncoder: KeyDecoder: TypeTag, E](
       transactor: Transactor[F],
       settings: PostgresEventJournal.Settings,
       tagging: Tagging[K],
@@ -43,15 +44,16 @@ final class PostgresEventJournal[F[_], K, E](
     serializer: Serializer[E])(implicit F: Async[F],
                                encodeKey: KeyEncoder[K],
                                decodeKey: KeyDecoder[K],
-                               timer: Timer[F])
+                               timer: Timer[F],
+                               T: TypeTag[K])
     extends EventJournal[F, K, E]
     with PostgresEventJournalQueries[F, K, E] {
   import settings._
 
-  implicit val keyWrite: Write[K] = Write[String].contramap(encodeKey(_))
-  implicit val keyRead: Read[K] = Read[String].map(s =>
-    decodeKey(s).getOrElse(throw new Exception("Failed to decode key")))
-
+  implicit val keyWrite: Meta[K] = implicitly[Meta[String]].xmap(
+    s => decodeKey(s).getOrElse(throw new Exception("Failed to decode key")),
+    encodeKey(_)
+  )
 
   private def createTableCIO =
     for {
