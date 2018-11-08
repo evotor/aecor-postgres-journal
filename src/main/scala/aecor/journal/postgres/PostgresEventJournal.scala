@@ -125,7 +125,7 @@ final class PostgresEventJournal[F[_], K, E](
       f: (S, E) => Folded[S]): F[Folded[S]] =
     (fr"SELECT type_hint, bytes FROM"
       ++ Fragment.const(tableName)
-      ++ fr"WHERE key = ${encodeKey(key)} and seq_nr >= $offset ORDER BY seq_nr ASC")
+      ++ fr"WHERE key = ${encodeKey(key)} and seq_nr >= $offset ORDER BY seq_nr ASC FOR UPDATE")
       .query[(TypeHint, Array[Byte])]
       .stream
       .transact(xa)
