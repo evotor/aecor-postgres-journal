@@ -1,16 +1,16 @@
-package aecor.journal.postgres
+package io.evotor.aecorjournal.postgres
 
 import java.util.UUID
 
 import aecor.data._
-import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
-import aecor.journal.postgres.PostgresEventJournal.Serializer
 import cats.data.NonEmptyChain
 import cats.effect.IO
 import org.postgresql.util.PSQLException
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 import cats.implicits._
 import doobie.util.transactor.Transactor
+import io.evotor.aecorjournal.postgres.PostgresEventJournal.Serializer
+import io.evotor.aecorjournal.postgres.PostgresEventJournal.Serializer.TypeHint
 
 import scala.concurrent.duration._
 

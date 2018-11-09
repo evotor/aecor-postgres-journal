@@ -1,7 +1,7 @@
-package aecor.journal.postgres
+package io.evotor.aecorjournal.postgres
 
 import aecor.data.TagConsumer
-import aecor.journal.postgres.PostgresEventJournalQueries.OffsetStore
+import PostgresEventJournalQueries.OffsetStore
 import cats.effect.IO
 
 object TestOffsetStore {
@@ -12,7 +12,7 @@ object TestOffsetStore {
 
 }
 
-class TestOffsetStore(
+final class TestOffsetStore(
     store: scala.collection.concurrent.TrieMap[TagConsumer, Offset])
     extends OffsetStore[IO] {
   override def setValue(key: TagConsumer, value: Offset): IO[Unit] =

@@ -1,7 +1,7 @@
-package aecor.journal.postgres
+package io.evotor.aecorjournal.postgres
 
 import aecor.data.TagConsumer
-import aecor.journal.postgres.PostgresEventJournalQueries.OffsetStore
+import PostgresEventJournalQueries.OffsetStore
 import cats.implicits._
 import doobie.Update0
 import doobie.free.connection.ConnectionIO

@@ -1,9 +1,9 @@
-package aecor.journal.postgres
+package io.evotor.aecorjournal.postgres
 
 import aecor.data._
 import aecor.encoding.{KeyDecoder, KeyEncoder}
-import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
-import aecor.journal.postgres.PostgresEventJournal.Serializer
+import PostgresEventJournal.Serializer.TypeHint
+import PostgresEventJournal.Serializer
 import aecor.runtime.EventJournal
 import cats.data.NonEmptyChain
 import cats.effect.{Async, Timer}
@@ -125,7 +125,7 @@ final class PostgresEventJournal[F[_], K, E](
       f: (S, E) => Folded[S]): F[Folded[S]] =
     (fr"SELECT type_hint, bytes FROM"
       ++ Fragment.const(tableName)
-      ++ fr"WHERE key = ${encodeKey(key)} and seq_nr >= $offset ORDER BY seq_nr ASC")
+      ++ fr"WHERE key = ${encodeKey(key)} and seq_nr >= $offset ORDER BY seq_nr ASC FOR UPDATE")
       .query[(TypeHint, Array[Byte])]
       .stream
       .transact(xa)
@@ -154,7 +154,7 @@ final class PostgresEventJournal[F[_], K, E](
       offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] =
     (fr"SELECT id, key, seq_nr, type_hint, bytes FROM"
       ++ Fragment.const(tableName)
-      ++ fr"WHERE array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id > ${offset.value}) ORDER BY id ASC FOR UPDATE")
+      ++ fr"WHERE array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id > ${offset.value}) ORDER BY id ASC")
       .query[(Long, K, Long, String, Array[Byte])]
       .stream
       .transact(xa)

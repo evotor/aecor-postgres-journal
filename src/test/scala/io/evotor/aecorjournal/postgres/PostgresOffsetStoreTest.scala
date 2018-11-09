@@ -1,4 +1,4 @@
-package aecor.journal.postgres
+package io.evotor.aecorjournal.postgres
 
 import java.util.UUID
 

@@ -1,4 +1,4 @@
-package aecor.journal.postgres
+package io.evotor.aecorjournal.postgres
 
 import aecor.data._
 import aecor.runtime.KeyValueStore
@@ -12,27 +12,29 @@ object PostgresEventJournalQueries {
       queries: PostgresEventJournalQueries[F, K, E],
       offsetStore: OffsetStore[G]) {
 
-    private def wrap(tagConsumer: TagConsumer,
+    private def wrap(tag: EventTag, consumerId: ConsumerId,
                      underlying: (
                          EventTag,
                          Offset) => Stream[F, (Offset, EntityEvent[K, E])])
-      : G[Stream[F, Committable[G, (Offset, EntityEvent[K, E])]]] =
-      offsetStore.getValue(tagConsumer).map { committedOffset =>
-        val effectiveOffset = committedOffset.getOrElse(Offset.zero)
-        underlying(tagConsumer.tag, effectiveOffset)
-          .map {
-            case x @ (offset, _) =>
-              Committable(offsetStore.setValue(tagConsumer, offset), x)
-          }
+      : G[Stream[F, Committable[G, (Offset, EntityEvent[K, E])]]] = {
+        val tagConsumer = TagConsumer(tag, consumerId)
+        offsetStore.getValue(tagConsumer).map { committedOffset =>
+          val effectiveOffset = committedOffset.getOrElse(Offset.zero)
+          underlying(tag, effectiveOffset)
+            .map {
+              case x @ (offset, _) =>
+                Committable(offsetStore.setValue(tagConsumer, offset), x)
+            }
+        }
       }
 
     def eventsByTag(tag: EventTag, consumerId: ConsumerId)
       : G[Stream[F, Committable[G, (Offset, EntityEvent[K, E])]]] =
-      wrap(TagConsumer(tag, consumerId), queries.eventsByTag)
+      wrap(tag, consumerId, queries.eventsByTag)
 
     def currentEventsByTag(tag: EventTag, consumerId: ConsumerId)
       : G[Stream[F, Committable[G, (Offset, EntityEvent[K, E])]]] =
-      wrap(TagConsumer(tag, consumerId), queries.currentEventsByTag)
+      wrap(tag, consumerId, queries.currentEventsByTag)
   }
 }
 

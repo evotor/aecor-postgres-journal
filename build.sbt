@@ -1,9 +1,8 @@
 import sbtrelease.ReleaseStateTransformations._
-import sbtrelease.Version.Bump
 
 name := "aecor-postgres-journal"
 
-organization := "io.aecor"
+organization := "io.evotor"
 
 scalaVersion := "2.12.4"
 
@@ -87,29 +86,14 @@ scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports",
                                             "-Xfatal-warnings")
 
 publishMavenStyle := true
-
 releaseCrossBuild := true
-
 releaseCommitMessage := s"Set version to ${if (releaseUseGlobalVersion.value) (version in ThisBuild).value
 else version.value}"
 releaseVersionBump := sbtrelease.Version.Bump.Minor
-publishTo := {
-  val nexus = "http://nexus.market.local/repository/maven-"
-  if (isSnapshot.value)
-    Some("snapshots" at nexus + "snapshots/")
-  else
-    Some("releases" at nexus + "releases/")
-}
-
-releaseCrossBuild := true
-releaseVersionBump := Bump.Minor
-releaseCommitMessage := s"Set version to ${if (releaseUseGlobalVersion.value) (version in ThisBuild).value
-else version.value}"
 releaseIgnoreUntrackedFiles := true
 releasePublishArtifactsAction := PgpKeys.publishSigned.value
 homepage := Some(url("https://github.com/evotor/aecor-postgres-journal"))
 licenses := Seq("MIT" -> url("http://opensource.org/licenses/MIT"))
-publishMavenStyle := true
 publishArtifact in Test := false
 pomIncludeRepository := { _ =>
   false
