@@ -154,7 +154,7 @@ final class PostgresEventJournal[F[_], K, E](
       offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] =
     (fr"SELECT id, key, seq_nr, type_hint, bytes FROM"
       ++ Fragment.const(tableName)
-      ++ fr"WHERE array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id > ${offset.value}) ORDER BY id ASC FOR UPDATE")
+      ++ fr"WHERE array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id > ${offset.value}) ORDER BY id ASC")
       .query[(Long, K, Long, String, Array[Byte])]
       .stream
       .transact(xa)
