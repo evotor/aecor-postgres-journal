@@ -2,8 +2,8 @@ package aecor.journal.postgres
 
 import aecor.data._
 import aecor.encoding.{KeyDecoder, KeyEncoder}
-import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.journal.postgres.PostgresEventJournal.Serializer
+import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.runtime.EventJournal
 import cats.data.NonEmptyChain
 import cats.effect.{Async, Timer}
@@ -25,33 +25,28 @@ object PostgresEventJournal {
     type TypeHint = String
   }
 
-  final case class Settings(tableName: String, pollingInterval: FiniteDuration)
-
   def apply[F[_]: Timer: Async, K: KeyEncoder: KeyDecoder, E](
       transactor: Transactor[F],
-      settings: PostgresEventJournal.Settings,
+      tableName: String,
       tagging: Tagging[K],
       serializer: Serializer[E]): PostgresEventJournal[F, K, E] =
-    new PostgresEventJournal(transactor, settings, tagging, serializer)
+    new PostgresEventJournal(transactor, tableName, tagging, serializer)
 
 }
 
-final class PostgresEventJournal[F[_], K, E](
-    xa: Transactor[F],
-    settings: PostgresEventJournal.Settings,
-    tagging: Tagging[K],
-    serializer: Serializer[E])(implicit F: Async[F],
-                               encodeKey: KeyEncoder[K],
-                               decodeKey: KeyDecoder[K],
-                               timer: Timer[F])
-    extends EventJournal[F, K, E]
-    with PostgresEventJournalQueries[F, K, E] {
-  import settings._
+final class PostgresEventJournal[F[_], K, E](xa: Transactor[F],
+                                             tableName: String,
+                                             tagging: Tagging[K],
+                                             serializer: Serializer[E])(
+    implicit F: Async[F],
+    encodeKey: KeyEncoder[K],
+    decodeKey: KeyDecoder[K],
+    timer: Timer[F])
+    extends EventJournal[F, K, E] {
 
   implicit val keyWrite: Write[K] = Write[String].contramap(encodeKey(_))
   implicit val keyRead: Read[K] = Read[String].map(s =>
     decodeKey(s).getOrElse(throw new Exception("Failed to decode key")))
-
 
   private def createTableCIO =
     for {
@@ -140,30 +135,35 @@ final class PostgresEventJournal[F[_], K, E](
         case None    => Folded.next(zero)
       }
 
-  override protected val sleepBeforePolling: F[Unit] =
-    timer.sleep(pollingInterval)
+  def queries(
+      pollingInterval: FiniteDuration): PostgresEventJournalQueries[F, K, E] =
+    new PostgresEventJournalQueries[F, K, E] {
 
-  /**
-    * Streams all existing events tagged with tag, starting from offset exclusive
-    * @param tag - tag to be used as a filter
-    * @param offset - offset to start from, exclusive
-    * @return - a stream of events which terminates when reaches the last existing event.
-    */
-  def currentEventsByTag(
-      tag: EventTag,
-      offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] =
-    (fr"SELECT id, key, seq_nr, type_hint, bytes FROM"
-      ++ Fragment.const(tableName)
-      ++ fr"WHERE array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id > ${offset.value}) ORDER BY id ASC")
-      .query[(Long, K, Long, String, Array[Byte])]
-      .stream
-      .transact(xa)
-      .map {
-        case (eventOffset, key, seqNr, typeHint, bytes) =>
-          serializer.deserialize(typeHint, bytes).map { a =>
-            (Offset(eventOffset), EntityEvent(key, seqNr, a))
+      override protected val sleepBeforePolling: F[Unit] =
+        timer.sleep(pollingInterval)
+
+      /**
+        * Streams all existing events tagged with tag, starting from offset exclusive
+        * @param tag - tag to be used as a filter
+        * @param offset - offset to start from, exclusive
+        * @return - a stream of events which terminates when reaches the last existing event.
+        */
+      def currentEventsByTag(
+          tag: EventTag,
+          offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] =
+        (fr"SELECT id, key, seq_nr, type_hint, bytes FROM"
+          ++ Fragment.const(tableName)
+          ++ fr"WHERE array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id > ${offset.value}) ORDER BY id ASC")
+          .query[(Long, K, Long, String, Array[Byte])]
+          .stream
+          .transact(xa)
+          .map {
+            case (eventOffset, key, seqNr, typeHint, bytes) =>
+              serializer.deserialize(typeHint, bytes).map { a =>
+                (Offset(eventOffset), EntityEvent(key, seqNr, a))
+              }
           }
-      }
-      .evalMap(F.fromEither)
+          .evalMap(F.fromEither)
+    }
 
 }
