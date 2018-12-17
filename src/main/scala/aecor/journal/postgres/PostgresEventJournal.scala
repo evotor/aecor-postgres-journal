@@ -25,7 +25,7 @@ object PostgresEventJournal {
     type TypeHint = String
   }
 
-  def apply[F[_]: Timer: Async, K: KeyEncoder: KeyDecoder, E](
+  def apply[F[_]: Async, K: KeyEncoder: KeyDecoder, E](
       transactor: Transactor[F],
       tableName: String,
       tagging: Tagging[K],
@@ -40,8 +40,7 @@ final class PostgresEventJournal[F[_], K, E](xa: Transactor[F],
                                              serializer: Serializer[E])(
     implicit F: Async[F],
     encodeKey: KeyEncoder[K],
-    decodeKey: KeyDecoder[K],
-    timer: Timer[F])
+    decodeKey: KeyDecoder[K])
     extends EventJournal[F, K, E] {
 
   implicit val keyWrite: Write[K] = Write[String].contramap(encodeKey(_))
@@ -136,7 +135,7 @@ final class PostgresEventJournal[F[_], K, E](xa: Transactor[F],
       }
 
   def queries(
-      pollingInterval: FiniteDuration): PostgresEventJournalQueries[F, K, E] =
+      pollingInterval: FiniteDuration)(implicit timer: Timer[F]): PostgresEventJournalQueries[F, K, E] =
     new PostgresEventJournalQueries[F, K, E] {
 
       override protected val sleepBeforePolling: F[Unit] =
