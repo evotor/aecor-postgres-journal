@@ -18,7 +18,8 @@ class PostgresEventJournalTest
     extends FunSuite
     with Matchers
     with BeforeAndAfterAll {
-  implicit val contextShift = IO.contextShift(scala.concurrent.ExecutionContext.global)
+  implicit val contextShift =
+    IO.contextShift(scala.concurrent.ExecutionContext.global)
   implicit val timer = IO.timer(scala.concurrent.ExecutionContext.global)
   val stringSerializer: Serializer[String] = new Serializer[String] {
     override def serialize(a: String): (TypeHint, Array[Byte]) =
@@ -39,13 +40,13 @@ class PostgresEventJournalTest
   val tagging = Tagging.const[String](EventTag("test"))
   val journal = PostgresEventJournal(
     xa,
-    PostgresEventJournal.Settings(
-      tableName = s"test_${UUID.randomUUID().toString.replace('-', '_')}",
-      pollingInterval = 1.second
-    ),
+    tableName = s"test_${UUID.randomUUID().toString.replace('-', '_')}",
     tagging,
     stringSerializer
   )
+
+  val journalQueries = journal.queries(pollingInterval = 1.second)
+
   val consumerId = ConsumerId("C1")
 
   override protected def beforeAll(): Unit = {
@@ -83,7 +84,7 @@ class PostgresEventJournalTest
     val x = for {
       _ <- journal.append("b", 1L, NonEmptyChain("b1"))
       _ <- journal.append("a", 4L, NonEmptyChain("a4"))
-      folded <- journal
+      folded <- journalQueries
         .currentEventsByTag(tagging.tag, Offset.zero)
         .compile
         .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
@@ -101,7 +102,7 @@ class PostgresEventJournalTest
   }
 
   test("Journal emits current events by tag from non zero offset") {
-    val x = journal
+    val x = journalQueries
       .currentEventsByTag(tagging.tag, Offset(2L))
       .compile
       .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
@@ -117,7 +118,7 @@ class PostgresEventJournalTest
   test("Journal continuosly emits events by tag") {
     val appendEvent =
       journal.append("b", 2L, NonEmptyChain("b2"))
-    val foldEvents = journal
+    val foldEvents = journalQueries
       .eventsByTag(tagging.tag, Offset.zero)
       .take(6)
       .compile
@@ -145,7 +146,7 @@ class PostgresEventJournalTest
     "Journal continuously emits events by tag from non zero offset inclusive") {
     val appendEvent =
       journal.append("a", 5L, NonEmptyChain("a5"))
-    val foldEvents = journal
+    val foldEvents = journalQueries
       .eventsByTag(tagging.tag, Offset(6L))
       .take(2)
       .compile
@@ -167,7 +168,7 @@ class PostgresEventJournalTest
 
   test("Journal correctly uses offset store for current events by tag") {
     val x = for {
-      offset <- journal
+      offset <- journalQueries
         .currentEventsByTag(tagging.tag, Offset.zero)
         .take(3)
         .map(_._1)
@@ -177,7 +178,7 @@ class PostgresEventJournalTest
       os <- TestOffsetStore(Map(TagConsumer(tagging.tag, consumerId) -> offset))
       runOnce = fs2.Stream
         .force(
-          journal
+          journalQueries
             .withOffsetStore(os)
             .currentEventsByTag(tagging.tag, consumerId))
         .evalMap(_.commit)
