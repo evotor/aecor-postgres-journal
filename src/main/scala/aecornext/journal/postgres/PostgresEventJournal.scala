@@ -89,6 +89,9 @@ final class PostgresEventJournal[F[_], K, E](
   private val appendQuery =
     s"INSERT INTO $tableName (key, seq_nr, type_hint, bytes, tags) VALUES (?, ?, ?, ?, ?)"
 
+  private val lockTableQuery =
+    s"LOCK TABLE $tableName in share row exclusive mode"
+
   override def append(entityKey: K,
                       offset: Long,
                       events: NonEmptyChain[E]): F[Unit] = {
@@ -117,7 +120,11 @@ final class PostgresEventJournal[F[_], K, E](
       if (events.tail.isEmpty) insertOne
       else insertMany
 
-    cio.void.transact(xa)
+    val lockAndRun =
+      Update[Unit](lockTableQuery).run(()) >>
+        cio.void
+
+    lockAndRun.transact(xa)
   }
 
   private val deserialize_ =
@@ -156,7 +163,7 @@ final class PostgresEventJournal[F[_], K, E](
       offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] =
     (fr"SELECT id, key, seq_nr, type_hint, bytes FROM"
       ++ Fragment.const(tableName)
-      ++ fr"WHERE array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id > ${offset.value}) ORDER BY id ASC FOR UPDATE")
+      ++ fr"WHERE array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id > ${offset.value}) ORDER BY id ASC")
       .query[(Long, K, Long, String, Array[Byte])]
       .stream
       .transact(xa)
