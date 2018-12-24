@@ -165,6 +165,36 @@ class PostgresEventJournalTest
     assert(x.unsafeRunSync() == expected)
   }
 
+  test("Journal supports concurrent events by tag") {
+    val appendEvent =
+      journal.append("a", 9L, NonEmptyChain("a9"))
+
+    val foldEvents = journal
+      .eventsByTag(tagging.tag, Offset(6L))
+      .take(3)
+      .compile
+      .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
+
+    val x = for {
+      fiber1 <- foldEvents.start
+      fiber2 <- foldEvents.start
+      fiber3 <- foldEvents.start
+      _ <- appendEvent
+      _ <- IO.sleep(300.millis)
+      out1 <- fiber1.join
+      out2 <- fiber2.join
+      out3 <- fiber3.join
+    } yield (out1, out2, out3)
+
+    val expected = Vector(
+      (Offset(7L), EntityEvent("b", 2l, "b2")),
+      (Offset(8L), EntityEvent("a", 5l, "a5")),
+      (Offset(9L), EntityEvent("a", 9l, "a9"))
+    )
+
+    assert(x.unsafeRunSync() == ((expected, expected, expected)))
+  }
+
   test("Journal correctly uses offset store for current events by tag") {
     val x = for {
       offset <- journal
@@ -189,7 +219,7 @@ class PostgresEventJournalTest
       processed2 <- runOnce
     } yield (processed1, processed2)
 
-    assert(x.unsafeRunSync == ((4, 1)))
+    assert(x.unsafeRunSync == ((5, 1)))
   }
 
   override protected def afterAll(): Unit = {
