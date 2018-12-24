@@ -9,7 +9,6 @@ import cats.data.NonEmptyChain
 import cats.effect.IO
 import org.postgresql.util.PSQLException
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
-import cats.implicits._
 import doobie.util.transactor.Transactor
 
 import scala.concurrent.duration._
