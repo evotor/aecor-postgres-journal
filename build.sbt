@@ -8,7 +8,7 @@ organization := "io.aecor"
 scalaVersion := "2.12.4"
 
 lazy val kindProjectorVersion = "0.9.7"
-lazy val aecorVersion = "0.18.0-M2-compat1"
+lazy val aecorVersion = "0.18.0-compat"
 lazy val doobieVersion = "0.5.3"
 lazy val scalaCheckVersion = "1.13.4"
 lazy val scalaTestVersion = "3.0.1"
