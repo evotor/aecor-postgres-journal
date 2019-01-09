@@ -10,7 +10,7 @@ import cats.effect.IO
 import cats.implicits._
 import doobie.util.transactor.Transactor
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
-
+import fs2._
 import scala.concurrent.duration._
 
 class PostgresEventJournalEventsByTagGapTest
@@ -36,28 +36,30 @@ class PostgresEventJournalEventsByTagGapTest
     ""
   )
 
-  val tagging = Tagging.const[String](EventTag("test-skip"))
+  val tagging = Tagging.partitioned[String](10)(EventTag("test-skip"))
+
   val journal = PostgresEventJournal(
     xa,
     tableName = s"test_${UUID.randomUUID().toString.replace('-', '_')}",
     tagging,
     stringSerializer
   )
-  val consumerId = ConsumerId("C-skip")
 
   override protected def beforeAll(): Unit = {
     journal.createTable.unsafeRunSync()
   }
 
   test("Journal doesn't allow gap in eventsByTag during concurrent writes") {
-    val eventsForEachAggregate = 200L
+    val eventsForEachAggregate = 400L
+    val aggregateIds = List("q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "a", "s", "d", "f", "g", "h", "j", "k", "l", "z")
 
     def aggergateEvents(id: String) =
       (1L to eventsForEachAggregate).map(i => (i, id, s"$id$i")).toList
 
     val allEvents =
-      List("q", "w", "e", "r", "t", "y", "u", "i").map(aggergateEvents)
-    val allEventsCount = allEvents.size * eventsForEachAggregate
+      aggregateIds.map(aggergateEvents)
+
+    val allEventsCount = aggregateIds.size * eventsForEachAggregate
 
     def appendEvents(events: List[(Long, String, String)]) = events.traverse {
       case (offset, id, content) =>
@@ -66,22 +68,36 @@ class PostgresEventJournalEventsByTagGapTest
 
     val appendAllEvents = allEvents.parTraverse(appendEvents).void
 
-    val foldEvents = journal
-      .queries(pollingInterval = 100.millis)
-      .eventsByTag(tagging.tag, Offset(0L))
-      .takeWhile(_._1.value != allEventsCount)
+    val foldEvents = Stream.emits(tagging.tags)
+      .map { tag => 
+        journal.queries(pollingInterval = 100.millis)
+          .eventsByTag(tag, Offset(0L))
+      }
+      .parJoinUnbounded
+      .scan((false, Map.empty[String, Long])) {
+        case (acc @ (hasHole, seqNrs), (_, EntityEvent(key, seqNr, _))) =>
+          if (hasHole)
+            acc
+          else if (seqNrs.getOrElse(key, 0L) + 1 != seqNr) {
+            (true, seqNrs)
+          } else
+            (false, seqNrs.updated(key, seqNr))
+      }
+      .takeWhile( {
+        case (hasHole, counters) =>
+         !hasHole && counters.values.sum != allEventsCount
+      }, true)
+      .map(_._1)
       .compile
-      .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
+      .last
 
     val x = for {
-      fiber <- foldEvents.start
+      fiber <- (IO.shift >> foldEvents).start
       _ <- appendAllEvents
       out <- fiber.join
     } yield out
 
-    val diff =
-      (1L until allEventsCount).toVector.diff(x.unsafeRunSync().map(_._1.value))
-    assert(diff.isEmpty)
+    assert(x.unsafeRunSync().contains(false))
   }
 
   override protected def afterAll(): Unit = {
