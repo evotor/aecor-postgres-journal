@@ -100,7 +100,8 @@ final class PostgresEventJournalCIO[K, E](tableName: String,
 
   override def foldById[S](key: K, offset: Long, zero: S)(
       f: (S, E) => Folded[S]): ConnectionIO[Folded[S]] =
-    (fr"SELECT type_hint, bytes FROM"
+    (fr"/*NO LOAD BALANCE*/"
+      ++ fr"SELECT type_hint, bytes FROM"
       ++ Fragment.const(tableName)
       ++ fr"WHERE key = ${encodeKey(key)} and seq_nr >= $offset ORDER BY seq_nr ASC")
       .query[(TypeHint, Array[Byte])]
