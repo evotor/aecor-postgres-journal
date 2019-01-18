@@ -125,9 +125,10 @@ final class PostgresEventJournal[F[_], K, E](xa: Transactor[F],
 
   override def foldById[S](key: K, offset: Long, zero: S)(
       f: (S, E) => Folded[S]): F[Folded[S]] =
-    (fr"SELECT type_hint, bytes FROM"
+    (fr"/*NO LOAD BALANCE*/"
+      ++ fr"SELECT type_hint, bytes FROM"
       ++ Fragment.const(tableName)
-      ++ fr"WHERE key = ${encodeKey(key)} and seq_nr >= $offset ORDER BY seq_nr ASC FOR UPDATE")
+      ++ fr"WHERE key = ${encodeKey(key)} and seq_nr >= $offset ORDER BY seq_nr ASC")
       .query[(TypeHint, Array[Byte])]
       .stream
       .transact(xa)
