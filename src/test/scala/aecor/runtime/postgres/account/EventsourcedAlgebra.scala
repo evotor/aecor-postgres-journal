@@ -16,6 +16,7 @@ import cats.implicits._
 import io.circe.jawn
 import io.circe.syntax._
 import io.circe.generic.auto._
+
 final class EventsourcedAlgebra[F[_]](
                                        implicit F: MonadActionReject[F, Option[AccountState], AccountEvent, Rejection]
                                      ) extends Algebra[F] {
@@ -78,7 +79,7 @@ object EventsourcedAlgebra {
     EventsourcedBehavior
       .optionalRejectable(EventsourcedAlgebra.apply, AccountState.fromEvent, _.applyEvent(_))
 
-  val tagging: Tagging[AccountId] = Tagging.partitioned[AccountId](80)(EventTag("Account"))
+  val tagging: Tagging[AccountId] = Tagging.partitioned[AccountId](40)(EventTag("Account"))
 
   final val rootAccountId: AccountId = AccountId("ROOT")
   final case class AccountState(balance: Amount,
