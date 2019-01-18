@@ -8,12 +8,14 @@ organization := "io.aecor"
 scalaVersion := "2.12.7"
 
 lazy val kindProjectorVersion = "0.9.7"
-lazy val aecorVersion = "0.18.0"
+lazy val aecorVersion = "0.19.0-SNAPSHOT"
 lazy val doobieVersion = "0.6.0"
 lazy val scalaCheckVersion = "1.13.4"
 lazy val scalaTestVersion = "3.0.1"
 lazy val scalaCheckShapelessVersion = "1.1.4"
 lazy val catsVersion = "1.4.0"
+lazy val circeVersion = "0.10.1"
+lazy val scalametaParadiseVersion = "3.0.0-M11"
 
 resolvers ++= Seq(
   Resolver.sonatypeRepo("public")
@@ -23,11 +25,21 @@ libraryDependencies ++= Seq(
   "io.aecor" %% "core" % aecorVersion,
   "org.tpolecat" %% "doobie-core" % doobieVersion,
   "org.tpolecat" %% "doobie-postgres" % doobieVersion,
+  "org.tpolecat" %% "doobie-hikari" % doobieVersion,
+  "org.typelevel" %% "cats-effect" % "1.1.0",
   "org.scalacheck" %% "scalacheck" % scalaCheckVersion % Test,
   "org.scalatest" %% "scalatest" % scalaTestVersion % Test,
   "org.tpolecat" %% "doobie-scalatest" % doobieVersion % Test,
   "com.github.alexarchambault" %% "scalacheck-shapeless_1.13" % scalaCheckShapelessVersion % Test,
-  "org.typelevel" %% "cats-testkit" % catsVersion % Test
+  "org.typelevel" %% "cats-testkit" % catsVersion % Test,
+  "io.circe" %% "circe-core" % circeVersion % Test,
+  "io.circe" %% "circe-generic" % circeVersion % Test,
+  "io.circe" %% "circe-parser" % circeVersion % Test,
+  "io.circe" %% "circe-java8" % circeVersion % Test
+)
+
+addCompilerPlugin(
+  "org.scalameta" % "paradise" % scalametaParadiseVersion cross CrossVersion.full
 )
 
 scalacOptions ++= Seq(
@@ -78,7 +90,8 @@ scalacOptions ++= Seq(
   "-Ywarn-unused:patvars",
   "-Ywarn-unused:privates",
   "-Ywarn-value-discard",
-  "-Xsource:2.13"
+  "-Xsource:2.13",
+  "-Xplugin-require:macroparadise"
 )
 addCompilerPlugin("org.spire-math" %% "kind-projector" % kindProjectorVersion)
 

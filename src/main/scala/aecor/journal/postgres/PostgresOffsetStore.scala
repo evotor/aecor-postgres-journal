@@ -27,6 +27,7 @@ final class PostgresOffsetStore(tableName: String)
         none
       ).run
     } yield ()
+
   private[postgres] def dropTable: ConnectionIO[Unit] =
     Update0(s"DROP TABLE $tableName", none).run.void
 
@@ -47,8 +48,7 @@ final class PostgresOffsetStore(tableName: String)
   override def deleteValue(key: TagConsumer): ConnectionIO[Unit] =
     (fr"DELETE FROM"
       ++ Fragment.const(tableName)
-      ++ fr"WHERE tag = ${key.tag.value} AND consumer_id = ${key.consumerId.value}")
-      .update.run.void
+      ++ fr"WHERE tag = ${key.tag.value} AND consumer_id = ${key.consumerId.value}").update.run.void
 }
 
 object PostgresOffsetStore {

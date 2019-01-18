@@ -56,6 +56,7 @@ trait PostgresEventJournalQueries[F[_], K, E] {
         .eval(sleepBeforePolling) >> eventsByTag(tag, offset))
 
   }
+
   def currentEventsByTag(tag: EventTag,
                          offset: Offset): Stream[F, (Offset, EntityEvent[K, E])]
 
