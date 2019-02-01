@@ -81,14 +81,13 @@ final class PostgresEventJournal[F[_], K, E](xa: Transactor[F],
   private val appendQuery =
     s"INSERT INTO $tableName (key, seq_nr, type_hint, bytes, tags) VALUES (?, ?, ?, ?, ?)"
 
-  private val lockTableQuery =
-    s"LOCK TABLE $tableName in share row exclusive mode"
-
   override def append(entityKey: K,
                       offset: Long,
                       events: NonEmptyChain[E]): F[Unit] = {
 
     type Row = (K, Long, String, Array[Byte], List[String])
+
+   val tags = tagging.tag(entityKey).map(_.value).toList;
 
     def toRow(e: E, idx: Int): Row = {
       val (typeHint, bytes) = serializer.serialize(e)
@@ -96,7 +95,7 @@ final class PostgresEventJournal[F[_], K, E](xa: Transactor[F],
        idx + offset,
        typeHint,
        bytes,
-       tagging.tag(entityKey).map(_.value).toList)
+       tags)
     }
 
     val toRow_ = (toRow _).tupled
@@ -108,12 +107,14 @@ final class PostgresEventJournal[F[_], K, E](xa: Transactor[F],
       Update[Row](appendQuery)
         .updateMany(events.zipWithIndex.map(toRow_))
 
+    val lockQuery = tags.traverse(t => sql"select * from pg_advisory_xact_lock(${t.hashCode})".query[Unit].option)
+
     val cio =
       if (events.tail.isEmpty) insertOne
       else insertMany
 
     val lockAndRun =
-      Update[Unit](lockTableQuery).run(()) >>
+      lockQuery >>
         cio.void
 
     lockAndRun.transact(xa)
@@ -124,9 +125,10 @@ final class PostgresEventJournal[F[_], K, E](xa: Transactor[F],
 
   override def foldById[S](key: K, offset: Long, zero: S)(
       f: (S, E) => Folded[S]): F[Folded[S]] =
-    (fr"SELECT type_hint, bytes FROM"
+    (fr"/*NO LOAD BALANCE*/"
+      ++ fr"SELECT type_hint, bytes FROM"
       ++ Fragment.const(tableName)
-      ++ fr"WHERE key = ${encodeKey(key)} and seq_nr >= $offset ORDER BY seq_nr ASC FOR UPDATE")
+      ++ fr"WHERE key = ${encodeKey(key)} and seq_nr >= $offset ORDER BY seq_nr ASC")
       .query[(TypeHint, Array[Byte])]
       .stream
       .transact(xa)
