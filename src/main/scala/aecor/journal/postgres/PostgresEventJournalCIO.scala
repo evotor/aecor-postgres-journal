@@ -9,7 +9,7 @@ import cats.data.NonEmptyChain
 import cats.implicits.{none, _}
 import doobie._
 import doobie.implicits._
-import  doobie.postgres.implicits._
+import doobie.postgres.implicits._
 import fs2.Stream
 
 final class PostgresEventJournalCIO[K, E](tableName: String,
@@ -21,8 +21,9 @@ final class PostgresEventJournalCIO[K, E](tableName: String,
     extends EventJournal[ConnectionIO, K, E] {
 
   implicit val keyWrite: Write[K] = Write[String].contramap(encodeKey(_))
-  implicit val keyRead: Read[K] = Read[String].map(s =>
+    implicit val keyRead: Read[K] = Read[String].map(s =>
     decodeKey(s).getOrElse(throw new Exception("Failed to decode key")))
+
 
   def createTable: ConnectionIO[Unit] =
     for {
@@ -78,21 +79,18 @@ final class PostgresEventJournalCIO[K, E](tableName: String,
       Update[Row](appendQuery)
         .updateMany(events.zipWithIndex.map(toRow_))
 
-    val lockQuery = tags.traverse(
+    val lockTags = tags.traverse_(
       t =>
         sql"select pg_advisory_xact_lock(${t.hashCode})"
           .query[Unit]
           .option)
 
-    val cio =
+    val insert =
       if (events.tail.isEmpty) insertOne
       else insertMany
 
-    val lockAndRun =
-      lockQuery >>
-        cio.void
-
-    lockAndRun
+    lockTags >>
+      insert.void
   }
 
   private val deserialize_ =

@@ -2,7 +2,7 @@ package aecor.journal.postgres
 
 import aecor.encoding.KeyEncoder
 import aecor.journal.postgres.PostgresEventJournal.Serializer
-import aecor.runtime.Eventsourced.InternalState
+import aecor.runtime.Eventsourced.Versioned
 import aecor.runtime.KeyValueStore
 import cats.implicits._
 import doobie._
@@ -12,7 +12,7 @@ import doobie.implicits._
 final class PostgresSnapshotStore[K, S](tableName: String)(
     implicit S: Serializer[S],
     encodeKey: KeyEncoder[K])
-    extends KeyValueStore[ConnectionIO, K, InternalState[S]] { outer =>
+    extends KeyValueStore[ConnectionIO, K, Versioned[S]] { outer =>
 
   def createTable: ConnectionIO[Unit] =
     Update0(
@@ -30,13 +30,13 @@ final class PostgresSnapshotStore[K, S](tableName: String)(
   def dropTable: ConnectionIO[Unit] =
     Update0(s"DROP TABLE $tableName", none).run.void
 
-  override def setValue(key: K, value: InternalState[S]): ConnectionIO[Unit] = {
-    val (typeHint, payload) = S.serialize(value.entityState)
+  override def setValue(key: K, versioned: Versioned[S]): ConnectionIO[Unit] = {
+    val (typeHint, payload) = S.serialize(versioned.value)
     (fr"INSERT INTO" ++ Fragment.const(tableName) ++
-      fr"(key, version, type_hint, payload) VALUES (${encodeKey(key)}, ${value.version}, $typeHint, $payload)" ++
+      fr"(key, version, type_hint, payload) VALUES (${encodeKey(key)}, ${versioned.version}, $typeHint, $payload)" ++
       fr"ON CONFLICT (key) DO UPDATE SET version = EXCLUDED.version, type_hint = EXCLUDED.type_hint, payload = EXCLUDED.payload").update.run.void
   }
-  override def getValue(key: K): ConnectionIO[Option[InternalState[S]]] =
+  override def getValue(key: K): ConnectionIO[Option[Versioned[S]]] =
     (fr"SELECT version, type_hint, payload FROM" ++
       Fragment.const(tableName) ++
       fr"WHERE key = ${encodeKey(key)}")
@@ -45,7 +45,7 @@ final class PostgresSnapshotStore[K, S](tableName: String)(
       .map {
         case Some((version, typeHint, payload)) =>
           S.deserialize(typeHint, payload) match {
-            case Right(s) => InternalState(s, version).some
+            case Right(s) => Versioned(s, version).some
             case Left(_)  => none
           }
         case None => none
@@ -55,18 +55,21 @@ final class PostgresSnapshotStore[K, S](tableName: String)(
     (fr"DELETE FROM" ++ Fragment.const(tableName) ++
       fr"WHERE key = ${KeyEncoder[K].apply(key)}").update.run.void
 
-  def optional: KeyValueStore[ConnectionIO, K, InternalState[Option[S]]] =
-    new KeyValueStore[ConnectionIO, K, InternalState[Option[S]]] {
-      override def setValue(key: K, value: InternalState[Option[S]]): ConnectionIO[Unit] =
-        value.entityState match {
-          case Some(s) => outer.setValue(key, InternalState(s, value.version))
-          case None => deleteValue(key)
+  def optional: KeyValueStore[ConnectionIO, K, Versioned[Option[S]]] =
+    new KeyValueStore[ConnectionIO, K, Versioned[Option[S]]] {
+      override def setValue(
+          key: K,
+          versioned: Versioned[Option[S]]): ConnectionIO[Unit] =
+        versioned.value match {
+          case Some(s) => outer.setValue(key, Versioned(s, versioned.version))
+          case None    => deleteValue(key)
         }
 
-      override def getValue(key: K): ConnectionIO[Option[InternalState[Option[S]]]] =
+      override def getValue(
+          key: K): ConnectionIO[Option[Versioned[Option[S]]]] =
         outer.getValue(key).map {
-          case Some(s) => InternalState(s.entityState.some, s.version).some
-          case None => none
+          case Some(v) => Versioned(v.value.some, v.version).some
+          case None    => none
         }
 
       override def deleteValue(key: K): ConnectionIO[Unit] =

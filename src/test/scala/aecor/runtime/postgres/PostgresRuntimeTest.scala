@@ -1,15 +1,13 @@
 package aecor.runtime.postgres
 
 import aecor.runtime.postgres.account._
-import cats.effect.{ContextShift, IO}
-import doobie.util.transactor.Transactor
-import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
-import doobie._
-import doobie.implicits._
+import aecor.runtime.postgres.account.deployment._
+import cats.effect.{ContextShift, IO, Resource}
 import cats.implicits._
-import deployment._
-import cats.effect.Resource
+import doobie._
 import doobie.hikari._
+import doobie.implicits._
+import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
 class PostgresRuntimeTest
     extends FunSuite
@@ -18,15 +16,6 @@ class PostgresRuntimeTest
 
   implicit val contextShift: ContextShift[IO] =
     IO.contextShift(scala.concurrent.ExecutionContext.global)
-
-  private val oxa = Transactor.fromDriverManager[IO](
-    "org.postgresql.Driver",
-    s"jdbc:postgresql://localhost:5432/postgres",
-    "user",
-    ""
-  )
-
-  oxa.hashCode()
 
   val createTransactor = for {
     ce <- ExecutionContexts.fixedThreadPool[IO](32) // our connect EC
@@ -41,25 +30,31 @@ class PostgresRuntimeTest
     _ <- Resource.liftF(xa.configure(x => IO(x.setMaximumPoolSize(32))))
   } yield xa
 
-  private val (xa, shutdown) = createTransactor.allocated.unsafeRunSync()
+  private val (xa, shutdownTransactor) =
+    createTransactor.allocated.unsafeRunSync()
 
   test("foo") {
     val accounts = deploy(xa)
-    val count = 60000
+    val rounds = 2
+    val count = 30000
     val size = 2
-    val program = (1 to count).toVector
-      .map { idx =>
-        val foo = accounts(AccountId(s"foo$idx"))
-        val one = foo.open(checkBalance = false) >>
-          (1 to size).toVector.traverse_ { x =>
-            foo
-              .credit(TransactionId(s"$x"), Amount(1))
-          } >> foo.getBalance.map(_.right.get.asBigDecimal)
-        one
-      }
-      .parTraverse(_.start)
-      .flatMap(_.parTraverse(_.join))
-    assert(program.unsafeRunSync().sum == BigDecimal(count * size))
+    val start = System.currentTimeMillis()
+    val result = (1 to rounds).toVector.map { round =>
+      (1 to count).toVector
+        .parTraverse { idx =>
+          val foo = accounts(AccountId(s"$round-$idx"))
+          val one = foo.open(checkBalance = false) >>
+            (1 to size).toVector.parTraverse_ { x =>
+              foo
+                .credit(TransactionId(s"$x"), Amount(1))
+            } >> foo.getBalance.map(_.right.get.asBigDecimal)
+          one
+        }.unsafeRunSync().sum
+    }.sum
+    val end = System.currentTimeMillis()
+    val rate = (count * (size + 1) * rounds / ((end - start) / 1000.0)).floor
+    println(s"$rate btx/s")
+    assert(result == BigDecimal(count * size * rounds))
   }
 
   override protected def beforeAll(): Unit = {
@@ -69,7 +64,7 @@ class PostgresRuntimeTest
   }
 
   override protected def afterAll(): Unit = {
-    ((journal.dropTable >> snapshotStore.dropTable).transact(xa) >> shutdown)
+    ((journal.dropTable >> snapshotStore.dropTable).transact(xa) >> shutdownTransactor)
       .unsafeRunSync()
   }
 
