@@ -1,9 +1,7 @@
 package aecor.runtime.postgres.account
-import aecor.encoding.{KeyDecoder, KeyEncoder}
+import aecor.encoding.{ KeyDecoder, KeyEncoder }
 import cats.kernel.Hash
 import cats.tagless.autoFunctorK
-
-
 @autoFunctorK(true)
 trait Algebra[F[_]] {
   def open(checkBalance: Boolean): F[Unit]
@@ -21,12 +19,12 @@ object AccountId {
 }
 
 final case class TransactionId(asString: String) extends AnyVal
-final case class Amount(asBigDecimal: BigDecimal) extends AnyVal {
-  def >(other: Amount): Boolean = asBigDecimal > other.asBigDecimal
-  def <=(other: Amount): Boolean = asBigDecimal <= other.asBigDecimal
-  def >=(other: Amount): Boolean = asBigDecimal >= other.asBigDecimal
-  def -(other: Amount): Amount = Amount(asBigDecimal - other.asBigDecimal)
-  def +(other: Amount): Amount = Amount(asBigDecimal + other.asBigDecimal)
+final case class Amount(asLong: Long) extends AnyVal {
+  def >(other: Amount): Boolean = asLong > other.asLong
+  def <=(other: Amount): Boolean = asLong <= other.asLong
+  def >=(other: Amount): Boolean = asLong >= other.asLong
+  def -(other: Amount): Amount = Amount(asLong - other.asLong)
+  def +(other: Amount): Amount = Amount(asLong + other.asLong)
 }
 
 object Amount {

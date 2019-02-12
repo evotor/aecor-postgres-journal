@@ -15,11 +15,11 @@ object PostgresRuntime {
       transactor: Transactor[F]
   ): K => M[F] = {
     key =>
+      val lockKey = sql"SELECT pg_advisory_xact_lock(${typeName.hashCode}, ${key.hash})"
+        .query[Unit]
+        .unique
       behavior(key).mapK(Lambda[ConnectionIO ~> F] { action =>
-        (sql"SELECT pg_advisory_xact_lock(${typeName.hashCode}, ${key.hash})"
-          .query[Unit]
-          .unique >>
-          action).transact(transactor)
+        (lockKey >> action).transact(transactor)
       })
   }
 }

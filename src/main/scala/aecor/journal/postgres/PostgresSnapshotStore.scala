@@ -4,28 +4,25 @@ import aecor.encoding.KeyEncoder
 import aecor.journal.postgres.PostgresEventJournal.Serializer
 import aecor.runtime.Eventsourced.Versioned
 import aecor.runtime.KeyValueStore
+import cats.Functor
 import cats.implicits._
 import doobie._
 import doobie.free.connection.ConnectionIO
 import doobie.implicits._
 
-final class PostgresSnapshotStore[K, S](tableName: String)(
-    implicit S: Serializer[S],
-    encodeKey: KeyEncoder[K])
+final class PostgresSnapshotStore[K, S](tableName: String)(implicit S: Serializer[S],
+                                                           encodeKey: KeyEncoder[K])
     extends KeyValueStore[ConnectionIO, K, Versioned[S]] { outer =>
 
   def createTable: ConnectionIO[Unit] =
-    Update0(
-      s"""
+    Update0(s"""
         CREATE TABLE IF NOT EXISTS $tableName (
           key TEXT PRIMARY KEY,
           version BIGINT NOT NULL,
           type_hint TEXT NOT NULL,
           payload BYTEA NOT NULL
         )
-        """,
-      none
-    ).run.void
+        """, none).run.void
 
   def dropTable: ConnectionIO[Unit] =
     Update0(s"DROP TABLE $tableName", none).run.void
@@ -56,30 +53,29 @@ final class PostgresSnapshotStore[K, S](tableName: String)(
       fr"WHERE key = ${KeyEncoder[K].apply(key)}").update.run.void
 
   def optional: KeyValueStore[ConnectionIO, K, Versioned[Option[S]]] =
-    new KeyValueStore[ConnectionIO, K, Versioned[Option[S]]] {
-      override def setValue(
-          key: K,
-          versioned: Versioned[Option[S]]): ConnectionIO[Unit] =
-        versioned.value match {
-          case Some(s) => outer.setValue(key, Versioned(s, versioned.version))
-          case None    => deleteValue(key)
-        }
+    new OptionalKeyValueStore(this)
+}
 
-      override def getValue(
-          key: K): ConnectionIO[Option[Versioned[Option[S]]]] =
-        outer.getValue(key).map {
-          case Some(v) => Versioned(v.value.some, v.version).some
-          case None    => none
-        }
-
-      override def deleteValue(key: K): ConnectionIO[Unit] =
-        outer.deleteValue(key)
+final class OptionalKeyValueStore[F[_]: Functor, K, S](outer: KeyValueStore[F, K, Versioned[S]])
+    extends KeyValueStore[F, K, Versioned[Option[S]]] {
+  override def setValue(key: K, versioned: Versioned[Option[S]]): F[Unit] =
+    versioned.value match {
+      case Some(s) => outer.setValue(key, Versioned(s, versioned.version))
+      case None    => deleteValue(key)
     }
+
+  override def getValue(key: K): F[Option[Versioned[Option[S]]]] =
+    outer.getValue(key).map {
+      case Some(v) => Versioned(v.value.some, v.version).some
+      case None    => none
+    }
+
+  override def deleteValue(key: K): F[Unit] =
+    outer.deleteValue(key)
 }
 
 object PostgresSnapshotStore {
-  def apply[K, S](tableName: String)(
-      implicit S: Serializer[S],
-      encodeKey: KeyEncoder[K]): PostgresSnapshotStore[K, S] =
+  def apply[K, S](tableName: String)(implicit S: Serializer[S],
+                                     encodeKey: KeyEncoder[K]): PostgresSnapshotStore[K, S] =
     new PostgresSnapshotStore(tableName)
 }
