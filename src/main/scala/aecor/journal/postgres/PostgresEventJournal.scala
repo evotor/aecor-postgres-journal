@@ -1,7 +1,7 @@
 package aecor.journal.postgres
 
 import aecor.data._
-import aecor.encoding.{KeyDecoder, KeyEncoder}
+import aecor.encoding.{ KeyDecoder, KeyEncoder }
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.runtime.EventJournal
 import cats.Monad
@@ -13,62 +13,68 @@ import fs2.Stream
 
 import scala.concurrent.duration.FiniteDuration
 
+trait PostgresEventJournal[F[_], K, E] extends EventJournal[F, K, E] {
+  def createTable: F[Unit]
+  def dropTable: F[Unit]
+  def currentEventsByTag(tag: EventTag, offset: Offset): Stream[F, (Offset, EntityEvent[K, E])]
+}
+
 object PostgresEventJournal {
+
   trait Serializer[A] {
     def serialize(a: A): (TypeHint, Array[Byte])
-    def deserialize(typeHint: TypeHint,
-                    bytes: Array[Byte]): Either[Throwable, A]
+    def deserialize(typeHint: TypeHint, bytes: Array[Byte]): Either[Throwable, A]
   }
   object Serializer {
     type TypeHint = String
   }
 
   def apply[F[_]: Monad, K: KeyEncoder: KeyDecoder, E](
-      transactor: Transactor[F],
-      tableName: String,
-      tagging: Tagging[K],
-      serializer: Serializer[E]): PostgresEventJournal[F, K, E] =
-    new PostgresEventJournal(
-      PostgresEventJournalCIO(tableName, tagging, serializer),
-      transactor)
+    transactor: Transactor[F],
+    tableName: String,
+    tagging: Tagging[K],
+    serializer: Serializer[E]
+  ): PostgresEventJournal[F, K, E] =
+    PostgresEventJournalCIO(tableName, tagging, serializer)
+      .transact(transactor)
 
-}
+  implicit final class PostgresEventJournalQueriesSyntax[F[_], K, E](
+    val self: PostgresEventJournal[F, K, E]
+  ) extends AnyVal {
+    def queries(
+      pollingInterval: FiniteDuration
+    )(implicit timer: Timer[F]): PostgresEventJournalQueries[F, K, E] =
+      new PostgresEventJournalQueries[F, K, E] {
 
-final class PostgresEventJournal[F[_], K, E](
-    cio: PostgresEventJournalCIO[K, E],
-    xa: Transactor[F])(implicit F: Monad[F])
-    extends EventJournal[F, K, E] {
+        override protected val sleepBeforePolling: F[Unit] =
+          timer.sleep(pollingInterval)
 
-  def createTable: F[Unit] = cio.createTable.transact(xa)
+        def currentEventsByTag(tag: EventTag,
+                               offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] =
+          self.currentEventsByTag(tag, offset)
+      }
+  }
 
-  private[postgres] def dropTable: F[Unit] = cio.dropTable.transact(xa)
+  implicit final class PostgresEventJournalCIOTransactSyntax[K, E](
+    val self: PostgresEventJournal[ConnectionIO, K, E]
+  ) extends AnyVal {
+    def transact[F[_]: Monad](xa: Transactor[F]): PostgresEventJournal[F, K, E] =
+      new PostgresEventJournal[F, K, E] {
+        override def createTable: F[Unit] = self.createTable.transact(xa)
 
-  override def append(entityKey: K,
-                      offset: Long,
-                      events: NonEmptyChain[E]): F[Unit] =
-    cio.append(entityKey, offset, events).transact(xa)
+        override def dropTable: F[Unit] = self.dropTable.transact(xa)
 
-  override def foldById[S](key: K, offset: Long, zero: S)(
-      f: (S, E) => Folded[S]): F[Folded[S]] =
-    cio.foldById(key, offset, zero)(f).transact(xa)
+        override def currentEventsByTag(tag: EventTag,
+                                        offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] =
+          self.currentEventsByTag(tag, offset).transact(xa)
 
-  def queries(pollingInterval: FiniteDuration)(
-      implicit timer: Timer[F]): PostgresEventJournalQueries[F, K, E] =
-    new PostgresEventJournalQueries[F, K, E] {
+        override def append(entityKey: K, sequenceNr: Long, events: NonEmptyChain[E]): F[Unit] =
+          self.append(entityKey, sequenceNr, events).transact(xa)
 
-      override protected val sleepBeforePolling: F[Unit] =
-        timer.sleep(pollingInterval)
-
-      /**
-        * Streams all existing events tagged with tag, starting from offset exclusive
-        * @param tag - tag to be used as a filter
-        * @param offset - offset to start from, exclusive
-        * @return - a stream of events which terminates when reaches the last existing event.
-        */
-      def currentEventsByTag(
-          tag: EventTag,
-          offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] =
-        cio.currentEventsByTag(tag, offset).transact(xa)
-    }
-
+        override def foldById[S](entityKey: K, sequenceNr: Long, initial: S)(
+          f: (S, E) => Folded[S]
+        ): F[Folded[S]] =
+          self.foldById(entityKey, sequenceNr, initial)(f).transact(xa)
+      }
+  }
 }

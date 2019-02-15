@@ -4,27 +4,32 @@ import aecor.data._
 import aecor.encoding.{ KeyDecoder, KeyEncoder }
 import aecor.journal.postgres.PostgresEventJournal.Serializer
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
-import aecor.runtime.EventJournal
 import cats.data.NonEmptyChain
 import cats.implicits.{ none, _ }
 import doobie._
 import doobie.implicits._
 import doobie.postgres.implicits._
 import fs2.Stream
-import cats.implicits._
 
 final class PostgresEventJournalCIO[K, E](tableName: String,
                                           tagging: Tagging[K],
                                           serializer: Serializer[E])(implicit
                                                                      encodeKey: KeyEncoder[K],
                                                                      decodeKey: KeyDecoder[K])
-    extends EventJournal[ConnectionIO, K, E] {
+    extends PostgresEventJournal[ConnectionIO, K, E] {
 
   implicit val keyWrite: Write[K] = Write[String].contramap(encodeKey(_))
   implicit val keyRead: Read[K] =
     Read[String].map(s => decodeKey(s).getOrElse(throw new Exception("Failed to decode key")))
 
-  def createTable: ConnectionIO[Unit] =
+  private type Row = (K, Long, String, Array[Byte], List[String])
+
+  private val appendQuery =
+    Update[Row](
+      s"INSERT INTO $tableName (key, seq_nr, type_hint, bytes, tags) VALUES (?, ?, ?, ?, ?)"
+    )
+
+  override def createTable: ConnectionIO[Unit] =
     for {
       _ <- Update0(s"""
         CREATE TABLE IF NOT EXISTS $tableName (
@@ -46,40 +51,31 @@ final class PostgresEventJournalCIO[K, E](tableName: String,
             s"CREATE UNIQUE INDEX IF NOT EXISTS ${tableName}_key_seq_nr_uindex ON $tableName (key, seq_nr)",
             none
           ).run
+
+      _ <- Update0(s"CREATE INDEX IF NOT EXISTS ${tableName}_tags ON $tableName (tags)", none).run
     } yield ()
 
-  def dropTable: ConnectionIO[Unit] =
+  override def dropTable: ConnectionIO[Unit] =
     Update0(s"DROP TABLE $tableName", none).run.void
 
-  type Row = (K, Long, String, Array[Byte], List[String])
+  override def append(key: K, offset: Long, events: NonEmptyChain[E]): ConnectionIO[Unit] = {
 
-  private val appendQuery =
-    Update[Row](
-      s"INSERT INTO $tableName (key, seq_nr, type_hint, bytes, tags) VALUES (?, ?, ?, ?, ?)"
-    )
-
-  override def append(entityKey: K, offset: Long, events: NonEmptyChain[E]): ConnectionIO[Unit] = {
-
-    val tags = tagging.tag(entityKey).map(_.value).toList
+    val tags = tagging.tag(key).map(_.value).toList
 
     val lockTags = tags.traverse_ { tag =>
       sql"select pg_advisory_xact_lock(${tableName.hashCode}, ${tag.hashCode})"
         .query[Unit]
         .option
-      ().pure[ConnectionIO]
     }
 
     val insertEvents = events.traverseWithIndexM { (e, idx) =>
       val (typeHint, bytes) = serializer.serialize(e)
-      appendQuery.run((entityKey, idx + offset, typeHint, bytes, tags))
+      appendQuery.run((key, idx + offset, typeHint, bytes, tags))
     }.void
 
     lockTags >>
       insertEvents
   }
-
-  private val deserialize_ =
-    (serializer.deserialize _).tupled
 
   override def foldById[S](key: K, offset: Long, zero: S)(
     f: (S, E) => Folded[S]
@@ -90,8 +86,10 @@ final class PostgresEventJournalCIO[K, E](tableName: String,
       ++ fr"WHERE key = ${encodeKey(key)} and seq_nr >= $offset ORDER BY seq_nr ASC")
       .query[(TypeHint, Array[Byte])]
       .stream
-      .map(deserialize_)
-      .evalMap(AsyncConnectionIO.fromEither)
+      .evalMap {
+        case (typeHint, bytes) =>
+          AsyncConnectionIO.fromEither(serializer.deserialize(typeHint, bytes))
+      }
       .scan(Folded.next(zero))((acc, e) => acc.flatMap(f(_, e)))
       .takeWhile(_.isNext, takeFailure = true)
       .compile
@@ -101,20 +99,23 @@ final class PostgresEventJournalCIO[K, E](tableName: String,
         case None    => Folded.next(zero)
       }
 
-  def currentEventsByTag(tag: EventTag,
-                         offset: Offset): Stream[ConnectionIO, (Offset, EntityEvent[K, E])] =
+  override def currentEventsByTag(
+    tag: EventTag,
+    offset: Offset
+  ): Stream[ConnectionIO, (Offset, EntityEvent[K, E])] =
     (fr"SELECT id, key, seq_nr, type_hint, bytes FROM"
       ++ Fragment.const(tableName)
       ++ fr"WHERE array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id > ${offset.value}) ORDER BY id ASC")
       .query[(Long, K, Long, String, Array[Byte])]
       .stream
-      .map {
+      .evalMap {
         case (eventOffset, key, seqNr, typeHint, bytes) =>
-          serializer.deserialize(typeHint, bytes).map { a =>
-            (Offset(eventOffset), EntityEvent(key, seqNr, a))
-          }
+          AsyncConnectionIO
+            .fromEither(serializer.deserialize(typeHint, bytes))
+            .map { a =>
+              (Offset(eventOffset), EntityEvent(key, seqNr, a))
+            }
       }
-      .evalMap(AsyncConnectionIO.fromEither)
 }
 
 object PostgresEventJournalCIO {

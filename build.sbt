@@ -16,6 +16,7 @@ lazy val scalaCheckShapelessVersion = "1.1.4"
 lazy val catsVersion = "1.4.0"
 lazy val circeVersion = "0.10.1"
 lazy val scalametaParadiseVersion = "3.0.0-M11"
+lazy val logbackVersion = "1.2.3"
 
 resolvers ++= Seq(
   Resolver.sonatypeRepo("public")
@@ -35,7 +36,8 @@ libraryDependencies ++= Seq(
   "io.circe" %% "circe-core" % circeVersion % Test,
   "io.circe" %% "circe-generic" % circeVersion % Test,
   "io.circe" %% "circe-parser" % circeVersion % Test,
-  "io.circe" %% "circe-java8" % circeVersion % Test
+  "io.circe" %% "circe-java8" % circeVersion % Test,
+  "ch.qos.logback" % "logback-classic" % logbackVersion % Test
 )
 
 addCompilerPlugin(

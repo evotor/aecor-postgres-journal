@@ -8,9 +8,13 @@ import aecor.data.Folded.syntax._
 import aecor.data._
 import aecor.journal.postgres.PostgresEventJournal.Serializer
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
-import aecor.runtime.postgres.account.AccountEvent.{AccountCredited, AccountDebited, AccountOpened}
+import aecor.runtime.postgres.account.AccountEvent.{
+  AccountCredited,
+  AccountDebited,
+  AccountOpened
+}
 import aecor.runtime.postgres.account.EventsourcedAlgebra.AccountState
-import aecor.runtime.postgres.account.Rejection.{AccountDoesNotExist, InsufficientFunds}
+import aecor.runtime.postgres.account.Rejection.{ AccountDoesNotExist, InsufficientFunds }
 import cats.Monad
 import cats.implicits._
 import io.circe.jawn
@@ -18,8 +22,8 @@ import io.circe.syntax._
 import io.circe.generic.auto._
 
 final class EventsourcedAlgebra[F[_]](
-                                       implicit F: MonadActionReject[F, Option[AccountState], AccountEvent, Rejection]
-                                     ) extends Algebra[F] {
+  implicit F: MonadActionReject[F, Option[AccountState], AccountEvent, Rejection]
+) extends Algebra[F] {
 
   import F._
 
@@ -70,16 +74,14 @@ final class EventsourcedAlgebra[F[_]](
 object EventsourcedAlgebra {
 
   def apply[F[_]](
-                   implicit F: MonadActionReject[F, Option[AccountState], AccountEvent, Rejection]
-                 ): Algebra[F] = new EventsourcedAlgebra
+    implicit F: MonadActionReject[F, Option[AccountState], AccountEvent, Rejection]
+  ): Algebra[F] = new EventsourcedAlgebra
 
   def behavior[F[_]: Monad]: EventsourcedBehavior[EitherK[Algebra, Rejection, ?[_]], F, Option[
     AccountState
-    ], AccountEvent] =
+  ], AccountEvent] =
     EventsourcedBehavior
       .optionalRejectable(EventsourcedAlgebra.apply, AccountState.fromEvent, _.applyEvent(_))
-
-  val tagging: Tagging[AccountId] = Tagging.partitioned[AccountId](160)(EventTag("Account"))
 
   final val rootAccountId: AccountId = AccountId("ROOT")
   final case class AccountState(balance: Amount,
@@ -113,7 +115,8 @@ object EventsourcedAlgebra {
       override def serialize(a: AccountState): (TypeHint, Array[Byte]) =
         ("", a.asJson.noSpaces.getBytes(StandardCharsets.UTF_8))
 
-      override def deserialize(typeHint: TypeHint, bytes: Array[Byte]): Either[Throwable, AccountState] =
+      override def deserialize(typeHint: TypeHint,
+                               bytes: Array[Byte]): Either[Throwable, AccountState] =
         jawn
           .parseByteBuffer(ByteBuffer.wrap(bytes))
           .flatMap(_.as[AccountState])
@@ -121,4 +124,3 @@ object EventsourcedAlgebra {
     }
   }
 }
-

@@ -1,6 +1,6 @@
 package aecor.runtime.postgres.account
 
-import aecor.data.EitherK
+import aecor.data.{ EitherK, EventTag, Tagging }
 import aecor.journal.postgres.{
   OptionalKeyValueStore,
   PostgresEventJournalCIO,
@@ -17,8 +17,10 @@ import doobie.implicits._
 import doobie.util.transactor.Transactor
 
 object deployment {
+  val tagging: Tagging[AccountId] = Tagging.partitioned[AccountId](160)(EventTag("Account"))
+
   val journal =
-    PostgresEventJournalCIO("account_event", EventsourcedAlgebra.tagging, AccountEvent.serializer)
+    PostgresEventJournalCIO("account_event", tagging, AccountEvent.serializer)
 
   val snapshotStore: PostgresSnapshotStore[AccountId, AccountState] =
     PostgresSnapshotStore[AccountId, AccountState]("account_snapshot")
@@ -36,7 +38,7 @@ object deployment {
   }
 
   val snapshotting: Snapshotting[ConnectionIO, AccountId, Option[AccountState]] =
-    Snapshotting.snapshotEach(1L, new OptionalKeyValueStore(ss))
+    Snapshotting.snapshotEach(40L, new OptionalKeyValueStore(snapshotStore))
   snapshotting.hashCode()
 
   def deploy[F[_]: Monad](xa: Transactor[F]): Accounts[F] = {
