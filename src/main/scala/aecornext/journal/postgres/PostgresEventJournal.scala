@@ -119,7 +119,7 @@ final class PostgresEventJournal[F[_], K, E](
       if (events.tail.isEmpty) insertOne
       else insertMany
 
-    val lockQuery = tags.traverse(t => sql"select * from pg_advisory_xact_lock(${tableName.hashCode}, ${t.hashCode})".query[Unit].option)
+    val lockQuery = tags.traverse(t => sql"/*NO LOAD BALANCE*/ select * from pg_advisory_xact_lock(${tableName.hashCode}, ${t.hashCode})".query[Unit].option)
 
     val lockAndRun =
       lockQuery >>
