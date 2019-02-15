@@ -29,14 +29,12 @@ object PostgresEventJournal {
     type TypeHint = String
   }
 
-  def apply[F[_]: Monad, K: KeyEncoder: KeyDecoder, E](
-    transactor: Transactor[F],
+  def apply[K: KeyEncoder: KeyDecoder, E](
     tableName: String,
     tagging: Tagging[K],
     serializer: Serializer[E]
-  ): PostgresEventJournal[F, K, E] =
+  ): PostgresEventJournal[ConnectionIO, K, E] =
     PostgresEventJournalCIO(tableName, tagging, serializer)
-      .transact(transactor)
 
   implicit final class PostgresEventJournalQueriesSyntax[F[_], K, E](
     val self: PostgresEventJournal[F, K, E]

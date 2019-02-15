@@ -3,6 +3,7 @@ package aecor.runtime.postgres.account
 import aecor.data.{ EitherK, EventTag, Tagging }
 import aecor.journal.postgres.{
   OptionalKeyValueStore,
+  PostgresEventJournal,
   PostgresEventJournalCIO,
   PostgresSnapshotStore
 }
@@ -20,7 +21,7 @@ object deployment {
   val tagging: Tagging[AccountId] = Tagging.partitioned[AccountId](160)(EventTag("Account"))
 
   val journal =
-    PostgresEventJournalCIO("account_event", tagging, AccountEvent.serializer)
+    PostgresEventJournal("account_event", tagging, AccountEvent.serializer)
 
   val snapshotStore: PostgresSnapshotStore[AccountId, AccountState] =
     PostgresSnapshotStore[AccountId, AccountState]("account_snapshot")

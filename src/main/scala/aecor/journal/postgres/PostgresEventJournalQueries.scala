@@ -43,23 +43,20 @@ object PostgresEventJournalQueries {
 trait PostgresEventJournalQueries[F[_], K, E] {
   protected def sleepBeforePolling: F[Unit]
 
-  final def eventsByTag(tag: EventTag, offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] =
-    currentEventsByTag(tag, offset).zipWithNext
+  final def eventsByTag(tag: EventTag, offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] = {
+    val sleep = Stream.eval_(sleepBeforePolling)
+    currentEventsByTag(tag, offset).zipWithNext.noneTerminate
       .flatMap {
-        case (x, Some(_)) => Stream.emit(x)
-        case (x @ (latestOffset, _), None) =>
-          Stream
-            .emit(x)
-            .append(
-              Stream
-                .eval(sleepBeforePolling) >> eventsByTag(tag, latestOffset)
-            )
-
+        case Some((x, Some(_))) => Stream.emit(x)
+        case Some((x @ (latestOffset, _), None)) =>
+          Stream.emit(x) ++
+            sleep ++
+            eventsByTag(tag, latestOffset)
+        case None =>
+          sleep ++
+            eventsByTag(tag, offset)
       }
-      .append(
-        Stream
-          .eval(sleepBeforePolling) >> eventsByTag(tag, offset)
-      )
+  }
 
   /**
     * Streams all existing events tagged with tag, starting from offset exclusive

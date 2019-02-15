@@ -28,6 +28,7 @@ final class PostgresEventJournalCIO[K, E](tableName: String,
     Update[Row](
       s"INSERT INTO $tableName (key, seq_nr, type_hint, bytes, tags) VALUES (?, ?, ?, ?, ?)"
     )
+  private val noLoadBalance = Update0("/*NO LOAD BALANCE*/", none).run
 
   override def createTable: ConnectionIO[Unit] =
     for {
@@ -73,7 +74,7 @@ final class PostgresEventJournalCIO[K, E](tableName: String,
       appendQuery.run((key, idx + offset, typeHint, bytes, tags))
     }.void
 
-    lockTags >>
+    noLoadBalance >> lockTags >>
       insertEvents
   }
 
