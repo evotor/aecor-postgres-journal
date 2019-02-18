@@ -54,7 +54,7 @@ object Run extends IOApp {
               print("Press enter to continue >>")
               StdIn.readLine
             }
-        _ <- (journal.createTable >> snapshotStore.createTable).transact(xa)
+        _ <- (schema.createTable >> snapshotStore.createTable).transact(xa)
         accounts = deploy(xa)
         program = fs2.Stream
           .range(0, rounds)
@@ -79,7 +79,7 @@ object Run extends IOApp {
         _ = println(total)
         rate = (total / ((end - start) / 1000.0)).floor
         _ <- IO(println(s"$rate btx/s"))
-        _ <- (journal.dropTable >> snapshotStore.dropTable).transact(xa)
+        _ <- (schema.dropTable >> snapshotStore.dropTable).transact(xa)
       } yield ExitCode.Success
     }
   }
@@ -137,12 +137,12 @@ class PostgresRuntimeTest extends FunSuite with Matchers with BeforeAndAfterAll 
   }
 
   override protected def beforeAll(): Unit =
-    (journal.createTable >> snapshotStore.createTable)
+    (schema.createTable >> snapshotStore.createTable)
       .transact(xa)
       .unsafeRunSync()
 
   override protected def afterAll(): Unit =
-    ((journal.dropTable >> snapshotStore.dropTable).transact(xa) >> shutdownTransactor)
+    ((schema.dropTable >> snapshotStore.dropTable).transact(xa) >> shutdownTransactor)
       .unsafeRunSync()
 
 }

@@ -9,14 +9,12 @@ import cats.data.NonEmptyChain
 import cats.effect.IO
 import cats.implicits._
 import doobie.util.transactor.Transactor
-import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
+import doobie.implicits._
+import org.scalatest.{ BeforeAndAfterAll, FunSuite, Matchers }
 import fs2._
 import scala.concurrent.duration._
 
-class PostgresEventJournalEventsByTagGapTest
-    extends FunSuite
-    with Matchers
-    with BeforeAndAfterAll {
+class PostgresEventJournalEventsByTagGapTest extends FunSuite with Matchers with BeforeAndAfterAll {
   implicit val contextShift =
     IO.contextShift(scala.concurrent.ExecutionContext.global)
   implicit val timer = IO.timer(scala.concurrent.ExecutionContext.global)
@@ -24,8 +22,7 @@ class PostgresEventJournalEventsByTagGapTest
     override def serialize(a: String): (TypeHint, Array[Byte]) =
       ("", a.getBytes(java.nio.charset.StandardCharsets.UTF_8))
 
-    override def deserialize(typeHint: TypeHint,
-                             bytes: Array[Byte]): Either[Throwable, String] =
+    override def deserialize(typeHint: TypeHint, bytes: Array[Byte]): Either[Throwable, String] =
       Right(new String(bytes, java.nio.charset.StandardCharsets.UTF_8))
   }
 
@@ -36,22 +33,38 @@ class PostgresEventJournalEventsByTagGapTest
     ""
   )
 
+  val schema = JournalSchema(s"test_${UUID.randomUUID().toString.replace('-', '_')}")
   val tagging = Tagging.partitioned[String](10)(EventTag("test-skip"))
+  val journalCIO = PostgresEventJournal(schema, tagging, stringSerializer)
+  val journal = journalCIO.transact(xa)
 
-  val journal = PostgresEventJournal(
-    xa,
-    tableName = s"test_${UUID.randomUUID().toString.replace('-', '_')}",
-    tagging,
-    stringSerializer
-  )
-
-  override protected def beforeAll(): Unit = {
-    journal.createTable.unsafeRunSync()
-  }
+  override protected def beforeAll(): Unit =
+    schema.createTable.transact(xa).unsafeRunSync()
 
   test("Journal doesn't allow gap in eventsByTag during concurrent writes") {
     val eventsForEachAggregate = 400L
-    val aggregateIds = List("q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "a", "s", "d", "f", "g", "h", "j", "k", "l", "z")
+    val aggregateIds = List(
+      "q",
+      "w",
+      "e",
+      "r",
+      "t",
+      "y",
+      "u",
+      "i",
+      "o",
+      "p",
+      "a",
+      "s",
+      "d",
+      "f",
+      "g",
+      "h",
+      "j",
+      "k",
+      "l",
+      "z"
+    )
 
     def aggergateEvents(id: String) =
       (1L to eventsForEachAggregate).map(i => (i, id, s"$id$i")).toList
@@ -68,9 +81,11 @@ class PostgresEventJournalEventsByTagGapTest
 
     val appendAllEvents = allEvents.parTraverse(appendEvents).void
 
-    val foldEvents = Stream.emits(tagging.tags)
-      .map { tag => 
-        journal.queries(pollingInterval = 100.millis)
+    val foldEvents = Stream
+      .emits(tagging.tags)
+      .map { tag =>
+        journalCIO
+          .queries(100.millis, xa)
           .eventsByTag(tag, Offset(0L))
       }
       .parJoinUnbounded
@@ -83,9 +98,9 @@ class PostgresEventJournalEventsByTagGapTest
           } else
             (false, seqNrs.updated(key, seqNr))
       }
-      .takeWhile( {
+      .takeWhile({
         case (hasHole, counters) =>
-         !hasHole && counters.values.sum != allEventsCount
+          !hasHole && counters.values.sum != allEventsCount
       }, true)
       .map(_._1)
       .compile
@@ -100,8 +115,7 @@ class PostgresEventJournalEventsByTagGapTest
     assert(x.unsafeRunSync().contains(false))
   }
 
-  override protected def afterAll(): Unit = {
-    journal.dropTable.unsafeRunSync()
-  }
+  override protected def afterAll(): Unit =
+    schema.dropTable.transact(xa).unsafeRunSync()
 
 }

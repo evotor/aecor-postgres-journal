@@ -1,50 +1,51 @@
 package aecor.journal.postgres
 
 import aecor.data._
+import aecor.encoding.KeyDecoder
+import aecor.journal.postgres.PostgresEventJournal.Serializer
+import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.runtime.KeyValueStore
-import cats.Functor
-import cats.implicits._
+import cats.{ Functor, Monad }
+import cats.effect.Timer
+import doobie.util.transactor.Transactor
 import fs2.Stream
+import doobie.implicits._
+import doobie._
 
+import scala.concurrent.duration.FiniteDuration
 object PostgresEventJournalQueries {
-  type OffsetStore[F[_]] = KeyValueStore[F, TagConsumer, Offset]
-  final class WithOffsetStore[F[_], G[_]: Functor, K, E](
-    queries: PostgresEventJournalQueries[F, K, E],
-    offsetStore: OffsetStore[G]
-  ) {
-
-    private def wrap(
-      tagConsumer: TagConsumer,
-      underlying: (EventTag, Offset) => Stream[F, (Offset, EntityEvent[K, E])]
-    ): G[Stream[F, Committable[G, (Offset, EntityEvent[K, E])]]] =
-      offsetStore.getValue(tagConsumer).map { committedOffset =>
-        val effectiveOffset = committedOffset.getOrElse(Offset.zero)
-        underlying(tagConsumer.tag, effectiveOffset)
-          .map {
-            case x @ (offset, _) =>
-              Committable(offsetStore.setValue(tagConsumer, offset), x)
-          }
-      }
-
-    def eventsByTag(
-      tag: EventTag,
-      consumerId: ConsumerId
-    ): G[Stream[F, Committable[G, (Offset, EntityEvent[K, E])]]] =
-      wrap(TagConsumer(tag, consumerId), queries.eventsByTag)
-
-    def currentEventsByTag(
-      tag: EventTag,
-      consumerId: ConsumerId
-    ): G[Stream[F, Committable[G, (Offset, EntityEvent[K, E])]]] =
-      wrap(TagConsumer(tag, consumerId), queries.currentEventsByTag)
+  final class PostgresEventJournalQueriesBuilder[K] {
+    def apply[F[_]: Timer: Monad, E](
+      schema: JournalSchema,
+      serializer: Serializer[E],
+      pollInterval: FiniteDuration,
+      xa: Transactor[F]
+    )(implicit decodeKey: KeyDecoder[K]): PostgresEventJournalQueries[F, K, E] =
+      new PostgresEventJournalQueries(schema, serializer, pollInterval, xa)
   }
+
+  def apply[K]: PostgresEventJournalQueriesBuilder[K] = new PostgresEventJournalQueriesBuilder[K]
 }
 
-trait PostgresEventJournalQueries[F[_], K, E] {
-  protected def sleepBeforePolling: F[Unit]
+final class PostgresEventJournalQueries[F[_]: Monad: Timer, K, E](
+  schema: JournalSchema,
+  serializer: Serializer[E],
+  pollInterval: FiniteDuration,
+  xa: Transactor[F]
+)(implicit decodeKey: KeyDecoder[K]) {
 
-  final def eventsByTag(tag: EventTag, offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] = {
-    val sleep = Stream.eval_(sleepBeforePolling)
+  implicit val keyRead: Read[K] =
+    Read[String].map(s => decodeKey(s).getOrElse(throw new Exception("Failed to decode key")))
+
+  /**
+    * Streams all existing events tagged with tag, starting from offset exclusive,
+    * sleeps for pollInterval and then streams events starting with latest seen offset
+    * @param tag - tag to be used as a filter
+    * @param offset - offset to start from, exclusive
+    * @return - a stream of events which terminates when reaches the last existing event.
+    */
+  def eventsByTag(tag: EventTag, offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] = {
+    val sleep = Stream.sleep_(pollInterval)
     currentEventsByTag(tag, offset).zipWithNext.noneTerminate
       .flatMap {
         case Some((x, Some(_))) => Stream.emit(x)
@@ -64,10 +65,24 @@ trait PostgresEventJournalQueries[F[_], K, E] {
     * @param offset - offset to start from, exclusive
     * @return - a stream of events which terminates when reaches the last existing event.
     */
-  def currentEventsByTag(tag: EventTag, offset: Offset): Stream[F, (Offset, EntityEvent[K, E])]
+  def currentEventsByTag(tag: EventTag, offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] =
+    (fr"SELECT id, key, seq_nr, type_hint, bytes FROM"
+      ++ Fragment.const(schema.tableName)
+      ++ fr"WHERE array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id > ${offset.value}) ORDER BY id ASC")
+      .query[(Offset, K, Long, TypeHint, Array[Byte])]
+      .stream
+      .evalMap {
+        case (eventOffset, key, seqNr, typeHint, bytes) =>
+          AsyncConnectionIO
+            .fromEither(serializer.deserialize(typeHint, bytes))
+            .map { a =>
+              (eventOffset, EntityEvent(key, seqNr, a))
+            }
+      }
+      .transact(xa)
 
-  final def withOffsetStore[G[_]: Functor](
+  def withOffsetStore[G[_]: Functor](
     offsetStore: KeyValueStore[G, TagConsumer, Offset]
-  ): PostgresEventJournalQueries.WithOffsetStore[F, G, K, E] =
-    new PostgresEventJournalQueries.WithOffsetStore(this, offsetStore)
+  ): PostgresEventJournalQueriesWithOffsetStore[F, G, K, E] =
+    new PostgresEventJournalQueriesWithOffsetStore(this, offsetStore)
 }

@@ -1,21 +1,23 @@
 package aecor.journal.postgres
 
 import cats.implicits.none
-import doobie.{ ConnectionIO, Update0 }
+import doobie._
+import doobie.implicits._
 import cats.implicits._
 
-final case class Schema(tableName: String) {
+final case class JournalSchema(tableName: String, trackTimestamps: Boolean = false) {
   def createTable: ConnectionIO[Unit] =
     for {
       _ <- Update0(s"""
-        CREATE TABLE IF NOT EXISTS $tableName (
-          id BIGSERIAL,
-          key TEXT NOT NULL,
-          seq_nr INTEGER NOT NULL CHECK (seq_nr > 0),
-          type_hint TEXT NOT NULL,
-          bytes BYTEA NOT NULL,
-          tags TEXT[] NOT NULL
-        )
+        CREATE TABLE IF NOT EXISTS $tableName
+          ( id BIGSERIAL
+          , key TEXT NOT NULL
+          , seq_nr INTEGER NOT NULL CHECK (seq_nr > 0)
+          , type_hint TEXT NOT NULL
+          , bytes BYTEA NOT NULL
+          , tags TEXT[] NOT NULL
+          ${if (trackTimestamps) ", timestamp timestamp DEFAULT now()" else ""}
+          )
         """, none).run
 
       _ <- Update0(

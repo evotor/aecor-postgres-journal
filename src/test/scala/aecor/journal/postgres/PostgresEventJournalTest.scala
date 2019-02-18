@@ -8,15 +8,13 @@ import aecor.journal.postgres.PostgresEventJournal.Serializer
 import cats.data.NonEmptyChain
 import cats.effect.IO
 import org.postgresql.util.PSQLException
-import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
+import org.scalatest.{ BeforeAndAfterAll, FunSuite, Matchers }
 import doobie.util.transactor.Transactor
+import doobie.implicits._
 
 import scala.concurrent.duration._
 
-class PostgresEventJournalTest
-    extends FunSuite
-    with Matchers
-    with BeforeAndAfterAll {
+class PostgresEventJournalTest extends FunSuite with Matchers with BeforeAndAfterAll {
   implicit val contextShift =
     IO.contextShift(scala.concurrent.ExecutionContext.global)
   implicit val timer = IO.timer(scala.concurrent.ExecutionContext.global)
@@ -24,8 +22,7 @@ class PostgresEventJournalTest
     override def serialize(a: String): (TypeHint, Array[Byte]) =
       ("", a.getBytes(java.nio.charset.StandardCharsets.UTF_8))
 
-    override def deserialize(typeHint: TypeHint,
-                             bytes: Array[Byte]): Either[Throwable, String] =
+    override def deserialize(typeHint: TypeHint, bytes: Array[Byte]): Either[Throwable, String] =
       Right(new String(bytes, java.nio.charset.StandardCharsets.UTF_8))
   }
 
@@ -36,27 +33,22 @@ class PostgresEventJournalTest
     ""
   )
 
+  val schema = JournalSchema(s"test_${UUID.randomUUID().toString.replace('-', '_')}")
   val tagging = Tagging.const[String](EventTag("test"))
-  val journal = PostgresEventJournal(
-    xa,
-    tableName = s"test_${UUID.randomUUID().toString.replace('-', '_')}",
-    tagging,
-    stringSerializer
-  )
+  val journalCIO = PostgresEventJournal(schema, tagging, stringSerializer)
+  val journal = journalCIO.transact(xa)
 
-  val journalQueries = journal.queries(pollingInterval = 1.second)
+  val journalQueries = journalCIO.queries(1.second, xa)
 
   val consumerId = ConsumerId("C1")
 
-  override protected def beforeAll(): Unit = {
-    journal.createTable.unsafeRunSync()
-  }
+  override protected def beforeAll(): Unit =
+    schema.createTable.transact(xa).unsafeRunSync()
 
   test("Journal appends and folds events from zero offset") {
     val x = for {
       _ <- journal.append("a", 1L, NonEmptyChain("1", "2"))
-      folded <- journal.foldById("a", 1L, Vector.empty[String])((acc, e) =>
-        Folded.next(acc :+ e))
+      folded <- journal.foldById("a", 1L, Vector.empty[String])((acc, e) => Folded.next(acc :+ e))
     } yield folded
 
     x.unsafeRunSync() should be(Folded.next(Vector("1", "2")))
@@ -65,8 +57,7 @@ class PostgresEventJournalTest
   test("Journal appends and folds events from non-zero offset") {
     val x = for {
       _ <- journal.append("a", 3L, NonEmptyChain("3"))
-      folded <- journal.foldById("a", 2L, Vector.empty[String])((acc, e) =>
-        Folded.next(acc :+ e))
+      folded <- journal.foldById("a", 2L, Vector.empty[String])((acc, e) => Folded.next(acc :+ e))
     } yield folded
 
     x.unsafeRunSync() should be(Folded.next(Vector("2", "3")))
@@ -84,9 +75,9 @@ class PostgresEventJournalTest
       _ <- journal.append("b", 1L, NonEmptyChain("b1"))
       _ <- journal.append("a", 4L, NonEmptyChain("a4"))
       folded <- journalQueries
-        .currentEventsByTag(tagging.tag, Offset.zero)
-        .compile
-        .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
+                 .currentEventsByTag(tagging.tag, Offset.zero)
+                 .compile
+                 .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
     } yield folded
 
     val expected = Vector(
@@ -107,9 +98,11 @@ class PostgresEventJournalTest
       .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
 
     val expected =
-      Vector((Offset(3L), EntityEvent("a", 3, "3")),
-             (Offset(5L), EntityEvent("b", 1, "b1")),
-             (Offset(6L), EntityEvent("a", 4, "a4")))
+      Vector(
+        (Offset(3L), EntityEvent("a", 3, "3")),
+        (Offset(5L), EntityEvent("b", 1, "b1")),
+        (Offset(6L), EntityEvent("a", 4, "a4"))
+      )
 
     assert(x.unsafeRunSync() == expected)
   }
@@ -141,8 +134,7 @@ class PostgresEventJournalTest
     assert(x.unsafeRunSync() == expected)
   }
 
-  test(
-    "Journal continuously emits events by tag from non zero offset inclusive") {
+  test("Journal continuously emits events by tag from non zero offset inclusive") {
     val appendEvent =
       journal.append("a", 5L, NonEmptyChain("a5"))
     val foldEvents = journalQueries
@@ -157,10 +149,8 @@ class PostgresEventJournalTest
       out <- fiber.join
     } yield out
 
-    val expected = Vector(
-      (Offset(7L), EntityEvent("b", 2l, "b2")),
-      (Offset(8L), EntityEvent("a", 5l, "a5"))
-    )
+    val expected =
+      Vector((Offset(7L), EntityEvent("b", 2l, "b2")), (Offset(8L), EntityEvent("a", 5l, "a5")))
 
     assert(x.unsafeRunSync() == expected)
   }
@@ -168,18 +158,19 @@ class PostgresEventJournalTest
   test("Journal correctly uses offset store for current events by tag") {
     val x = for {
       offset <- journalQueries
-        .currentEventsByTag(tagging.tag, Offset.zero)
-        .take(3)
-        .map(_._1)
-        .compile
-        .last
-        .map(_.getOrElse(Offset.zero))
-      os <- TestOffsetStore(Map(TagConsumer(tagging.tag, consumerId) -> offset))
+                 .currentEventsByTag(tagging.tag, Offset.zero)
+                 .take(3)
+                 .map(_._1)
+                 .compile
+                 .last
+                 .map(_.getOrElse(Offset.zero))
+      os <- TestKeyValueStore[IO](Map(TagConsumer(tagging.tag, consumerId) -> offset))
       runOnce = fs2.Stream
         .force(
           journalQueries
             .withOffsetStore(os)
-            .currentEventsByTag(tagging.tag, consumerId))
+            .currentEventsByTag(tagging.tag, consumerId)
+        )
         .evalMap(_.commit)
         .as(1)
         .compile
@@ -192,8 +183,7 @@ class PostgresEventJournalTest
     assert(x.unsafeRunSync == ((4, 1)))
   }
 
-  override protected def afterAll(): Unit = {
-    journal.dropTable.unsafeRunSync()
-  }
+  override protected def afterAll(): Unit =
+    schema.dropTable.transact(xa).unsafeRunSync()
 
 }
