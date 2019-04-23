@@ -1,10 +1,10 @@
-package aecor.journal.postgres
+package aecornext.journal.postgres
 
 import java.util.UUID
 
-import aecor.data._
-import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
-import aecor.journal.postgres.PostgresEventJournal.Serializer
+import aecornext.data._
+import aecornext.journal.postgres.PostgresEventJournal.Serializer.TypeHint
+import aecornext.journal.postgres.PostgresEventJournal.Serializer
 import cats.data.NonEmptyChain
 import cats.effect.IO
 import org.postgresql.util.PSQLException

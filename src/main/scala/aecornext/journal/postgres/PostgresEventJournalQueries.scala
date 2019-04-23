@@ -1,7 +1,7 @@
-package aecor.journal.postgres
+package aecornext.journal.postgres
 
-import aecor.data._
-import aecor.runtime.KeyValueStore
+import aecornext.data._
+import aecornext.runtime.KeyValueStore
 import cats.Functor
 import cats.implicits._
 import fs2.Stream

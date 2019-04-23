@@ -1,4 +1,4 @@
-package aecor.journal.postgres
+package aecornext.journal.postgres
 
 final case class Offset(value: Long) extends AnyVal
 

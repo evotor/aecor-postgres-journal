@@ -1,10 +1,10 @@
-package aecor.journal.postgres
+package aecornext.journal.postgres
 
-import aecor.data._
-import aecor.encoding.{KeyDecoder, KeyEncoder}
-import aecor.journal.postgres.PostgresEventJournal.Serializer
-import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
-import aecor.runtime.EventJournal
+import aecornext.data._
+import aecornext.encoding.{KeyDecoder, KeyEncoder}
+import aecornext.journal.postgres.PostgresEventJournal.Serializer
+import aecornext.journal.postgres.PostgresEventJournal.Serializer.TypeHint
+import aecornext.runtime.EventJournal
 import cats.data.NonEmptyChain
 import cats.effect.{Async, Timer}
 import cats.implicits.{none, _}

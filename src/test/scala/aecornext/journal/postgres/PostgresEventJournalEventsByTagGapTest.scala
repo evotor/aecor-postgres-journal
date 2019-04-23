@@ -1,10 +1,10 @@
-package aecor.journal.postgres
+package aecornext.journal.postgres
 
 import java.util.UUID
 
-import aecor.data._
-import aecor.journal.postgres.PostgresEventJournal.Serializer
-import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
+import aecornext.data._
+import aecornext.journal.postgres.PostgresEventJournal.Serializer
+import aecornext.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import cats.data.NonEmptyChain
 import cats.effect.IO
 import cats.implicits._
@@ -69,7 +69,7 @@ class PostgresEventJournalEventsByTagGapTest
     val appendAllEvents = allEvents.parTraverse(appendEvents).void
 
     val foldEvents = Stream.emits(tagging.tags)
-      .map { tag => 
+      .map { tag =>
         journal.queries(pollingInterval = 100.millis)
           .eventsByTag(tag, Offset(0L))
       }

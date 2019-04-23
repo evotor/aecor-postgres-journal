@@ -1,8 +1,8 @@
-package aecor.journal.postgres
+package aecornext.journal.postgres
 
 import java.util.UUID
 
-import aecor.data.{ConsumerId, EventTag, TagConsumer}
+import aecornext.data.{ConsumerId, EventTag, TagConsumer}
 import cats.effect.IO
 import doobie.util.transactor.Transactor
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}

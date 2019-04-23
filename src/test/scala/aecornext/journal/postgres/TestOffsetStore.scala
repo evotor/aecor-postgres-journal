@@ -1,7 +1,7 @@
-package aecor.journal.postgres
+package aecornext.journal.postgres
 
-import aecor.data.TagConsumer
-import aecor.journal.postgres.PostgresEventJournalQueries.OffsetStore
+import aecornext.data.TagConsumer
+import aecornext.journal.postgres.PostgresEventJournalQueries.OffsetStore
 import cats.effect.IO
 
 object TestOffsetStore {
