@@ -21,6 +21,7 @@ resolvers ++= Seq(
 
 libraryDependencies ++= Seq(
   "io.aecor" %% "core" % aecorVersion,
+  "org.typelevel" %% "cats-effect" % "1.2.0",
   "org.tpolecat" %% "doobie-core" % doobieVersion,
   "org.tpolecat" %% "doobie-postgres" % doobieVersion,
   "org.scalacheck" %% "scalacheck" % scalaCheckVersion % Test,
