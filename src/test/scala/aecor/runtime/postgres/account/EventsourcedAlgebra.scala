@@ -8,13 +8,9 @@ import aecor.data.Folded.syntax._
 import aecor.data._
 import aecor.journal.postgres.PostgresEventJournal.Serializer
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
-import aecor.runtime.postgres.account.AccountEvent.{
-  AccountCredited,
-  AccountDebited,
-  AccountOpened
-}
+import aecor.runtime.postgres.account.AccountEvent.{AccountCredited, AccountDebited, AccountOpened}
 import aecor.runtime.postgres.account.EventsourcedAlgebra.AccountState
-import aecor.runtime.postgres.account.Rejection.{ AccountDoesNotExist, InsufficientFunds }
+import aecor.runtime.postgres.account.Rejection.{AccountDoesNotExist, InsufficientFunds}
 import cats.Monad
 import cats.implicits._
 import io.circe.jawn
@@ -84,9 +80,7 @@ object EventsourcedAlgebra {
       .optionalRejectable(EventsourcedAlgebra.apply, AccountState.fromEvent, _.applyEvent(_))
 
   final val rootAccountId: AccountId = AccountId("ROOT")
-  final case class AccountState(balance: Amount,
-                                processedTransactions: Set[TransactionId],
-                                checkBalance: Boolean) {
+  final case class AccountState(balance: Amount, processedTransactions: Set[TransactionId], checkBalance: Boolean) {
     def hasProcessedTransaction(transactionId: TransactionId): Boolean =
       processedTransactions.contains(transactionId)
     def hasFunds(amount: Amount): Boolean =
@@ -115,8 +109,7 @@ object EventsourcedAlgebra {
       override def serialize(a: AccountState): (TypeHint, Array[Byte]) =
         ("", a.asJson.noSpaces.getBytes(StandardCharsets.UTF_8))
 
-      override def deserialize(typeHint: TypeHint,
-                               bytes: Array[Byte]): Either[Throwable, AccountState] =
+      override def deserialize(typeHint: TypeHint, bytes: Array[Byte]): Either[Throwable, AccountState] =
         jawn
           .parseByteBuffer(ByteBuffer.wrap(bytes))
           .flatMap(_.as[AccountState])

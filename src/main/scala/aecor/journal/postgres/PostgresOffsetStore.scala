@@ -11,17 +11,20 @@ import doobie.util.fragment.Fragment
 final class PostgresOffsetStore(tableName: String) extends OffsetStore[ConnectionIO] {
   def createTable: ConnectionIO[Unit] =
     for {
-      _ <- Update0(s"""
+      _ <- Update0(
+        s"""
         CREATE TABLE IF NOT EXISTS $tableName (
           tag TEXT NOT NULL,
           consumer_id TEXT NOT NULL,
           consumer_offset BIGINT NOT NULL
         )
-        """, none).run
+        """,
+        none
+      ).run
       _ <- Update0(
-            s"CREATE UNIQUE INDEX IF NOT EXISTS ${tableName}_tag_consumer_id_uidx ON $tableName (tag, consumer_id)",
-            none
-          ).run
+        s"CREATE UNIQUE INDEX IF NOT EXISTS ${tableName}_tag_consumer_id_uidx ON $tableName (tag, consumer_id)",
+        none
+      ).run
     } yield ()
 
   private[postgres] def dropTable: ConnectionIO[Unit] =

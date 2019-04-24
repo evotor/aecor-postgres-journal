@@ -1,10 +1,9 @@
 package aecor.runtime.postgres.account
 
-import aecor.data.{ EitherK, EventTag, Tagging }
+import aecor.data.{EventTag, Tagging}
 import aecor.journal.postgres._
 import aecor.runtime.Eventsourced
 import aecor.runtime.Eventsourced.Snapshotting
-import aecor.runtime.eventsourced.ActionRunner
 import aecor.runtime.postgres.PostgresRuntime
 import aecor.runtime.postgres.account.EventsourcedAlgebra.AccountState
 import cats.Monad
@@ -23,22 +22,20 @@ object deployment {
   val snapshotStore: PostgresSnapshotStore[AccountId, AccountState] =
     PostgresSnapshotStore[AccountId, AccountState]("account_snapshot")
 
-  val snapshotting: Snapshotting[ConnectionIO, AccountId, Option[AccountState]] =
-    Snapshotting.snapshotEach(40L, new OptionalKeyValueStore(snapshotStore))
+  private val behaviorCIO = EventsourcedAlgebra.behavior[ConnectionIO]
 
   def deploy[F[_]: Monad](xa: Transactor[F]): Accounts[F] = {
 
-    val behaviorCIO = EventsourcedAlgebra.behavior[ConnectionIO]
+    Snapshotting.snapshotEach(
+      40L,
+      new OptionalKeyValueStore(snapshotStore).mapK(xa.trans)
+    )
 
-    val behavior: AccountId => EitherK[Algebra, Rejection, ConnectionIO] = { key: AccountId =>
-      ActionRunner(key, behaviorCIO.initial, behaviorCIO.update, journal)
-        .modifyStrategy(_.withSnapshotting(snapshotting))
-        .runActions(behaviorCIO.actions)
-    }
+    val behavior =
+      PostgresRuntime("Account", behaviorCIO, journal, Snapshotting.noSnapshot[F, AccountId, Option[AccountState]], xa)
 
     Eventsourced.Entities.fromEitherK(
-      PostgresRuntime
-        .runBehavior("Account", behavior, xa)
+      behavior
     )
   }
 }

@@ -8,10 +8,7 @@ import doobie.util.transactor.Transactor
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 import doobie.implicits._
 
-class PostgresOffsetStoreTest
-    extends FunSuite
-    with Matchers
-    with BeforeAndAfterAll {
+class PostgresOffsetStoreTest extends FunSuite with Matchers with BeforeAndAfterAll {
   implicit val contextShift = IO.contextShift(scala.concurrent.ExecutionContext.global)
   implicit val timer = IO.timer(scala.concurrent.ExecutionContext.global)
   private val xa = Transactor.fromDriverManager[IO](
@@ -20,8 +17,7 @@ class PostgresOffsetStoreTest
     "user",
     ""
   )
-  val store = PostgresOffsetStore(
-    s"offset_test_${UUID.randomUUID().toString.replace('-', '_')}")
+  val store = PostgresOffsetStore(s"offset_test_${UUID.randomUUID().toString.replace('-', '_')}")
 
   val tagConsumer = TagConsumer(EventTag("TheTag"), ConsumerId("Cnzmrr"))
 
@@ -50,11 +46,9 @@ class PostgresOffsetStoreTest
     assert(program.unsafeRunSync() == ((Some(offset1), None)))
   }
 
-  override protected def beforeAll(): Unit = {
+  override protected def beforeAll(): Unit =
     store.createTable.transact(xa).unsafeRunSync()
-  }
 
-  override protected def afterAll(): Unit = {
+  override protected def afterAll(): Unit =
     store.dropTable.transact(xa).unsafeRunSync()
-  }
 }

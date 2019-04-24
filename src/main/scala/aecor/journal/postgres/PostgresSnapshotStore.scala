@@ -10,19 +10,21 @@ import doobie._
 import doobie.free.connection.ConnectionIO
 import doobie.implicits._
 
-final class PostgresSnapshotStore[K, S](tableName: String)(implicit S: Serializer[S],
-                                                           encodeKey: KeyEncoder[K])
+final class PostgresSnapshotStore[K, S](tableName: String)(implicit S: Serializer[S], encodeKey: KeyEncoder[K])
     extends KeyValueStore[ConnectionIO, K, Versioned[S]] { outer =>
 
   def createTable: ConnectionIO[Unit] =
-    Update0(s"""
+    Update0(
+      s"""
         CREATE TABLE IF NOT EXISTS $tableName (
           key TEXT PRIMARY KEY,
           version BIGINT NOT NULL,
           type_hint TEXT NOT NULL,
           payload BYTEA NOT NULL
         )
-        """, none).run.void
+        """,
+      none
+    ).run.void
 
   def dropTable: ConnectionIO[Unit] =
     Update0(s"DROP TABLE $tableName", none).run.void
@@ -42,7 +44,7 @@ final class PostgresSnapshotStore[K, S](tableName: String)(implicit S: Serialize
       .map {
         case Some((version, typeHint, payload)) =>
           S.deserialize(typeHint, payload) match {
-            case Right(s) => Versioned(s, version).some
+            case Right(s) => Versioned(version, s).some
             case Left(_)  => none
           }
         case None => none
@@ -60,13 +62,13 @@ final class OptionalKeyValueStore[F[_]: Functor, K, S](outer: KeyValueStore[F, K
     extends KeyValueStore[F, K, Versioned[Option[S]]] {
   override def setValue(key: K, versioned: Versioned[Option[S]]): F[Unit] =
     versioned.value match {
-      case Some(s) => outer.setValue(key, Versioned(s, versioned.version))
+      case Some(s) => outer.setValue(key, Versioned(versioned.version, s))
       case None    => deleteValue(key)
     }
 
   override def getValue(key: K): F[Option[Versioned[Option[S]]]] =
     outer.getValue(key).map {
-      case Some(v) => Versioned(v.value.some, v.version).some
+      case Some(v) => Versioned(v.version, v.value.some).some
       case None    => none
     }
 
@@ -75,7 +77,6 @@ final class OptionalKeyValueStore[F[_]: Functor, K, S](outer: KeyValueStore[F, K
 }
 
 object PostgresSnapshotStore {
-  def apply[K, S](tableName: String)(implicit S: Serializer[S],
-                                     encodeKey: KeyEncoder[K]): PostgresSnapshotStore[K, S] =
+  def apply[K, S](tableName: String)(implicit S: Serializer[S], encodeKey: KeyEncoder[K]): PostgresSnapshotStore[K, S] =
     new PostgresSnapshotStore(tableName)
 }

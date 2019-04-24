@@ -11,7 +11,7 @@ object TestKeyValueStore {
 
   def apply[F[_]]: Builder[F] = new Builder[F]
   def empty[F[_], K, V](implicit F: Sync[F]): F[KeyValueStore[F, K, V]] =
-    F.delay(TestKeyValueStore(Map.empty))
+    TestKeyValueStore[F](Map.empty[K, V])
 }
 
 final class TestKeyValueStore[F[_], K, V](store: scala.collection.concurrent.TrieMap[K, V])(

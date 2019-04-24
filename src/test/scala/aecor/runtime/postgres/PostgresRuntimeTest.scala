@@ -7,7 +7,7 @@ import cats.implicits._
 import doobie._
 import doobie.hikari._
 import doobie.implicits._
-import org.scalatest.{ BeforeAndAfterAll, FunSuite, Matchers }
+import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 import fs2.Stream
 import scala.io.StdIn
 
@@ -15,17 +15,17 @@ object Run extends IOApp {
 
   private val createTransactor = for {
     ce <- ExecutionContexts
-           .cachedThreadPool[IO] //ExecutionContexts.fixedThreadPool[IO](512) // our connect EC
+      .cachedThreadPool[IO] //ExecutionContexts.fixedThreadPool[IO](512) // our connect EC
     te <- ExecutionContexts.cachedThreadPool[IO]
 //    ce = te
     xa <- HikariTransactor.newHikariTransactor[IO](
-           "org.postgresql.Driver",
-           "jdbc:postgresql://test-pgpool03.market.local/aecor_runtime_test",
-           "monkey_user",
-           "monkey_password",
-           ce,
-           te
-         )
+      "org.postgresql.Driver",
+      "jdbc:postgresql://test-pgpool03.market.local/aecor_runtime_test",
+      "monkey_user",
+      "monkey_password",
+      ce,
+      te
+    )
     _ = HikariTransactor.newHikariTransactor[IO](
       "org.postgresql.Driver",
       "jdbc:postgresql://localhost/postgres",
@@ -35,11 +35,11 @@ object Run extends IOApp {
       te
     )
     _ <- Resource.liftF(xa.configure { x =>
-          IO {
-            x.setMaximumPoolSize(256)
-            x.setAutoCommit(false)
-          }
-        })
+      IO {
+        x.setMaximumPoolSize(256)
+        x.setAutoCommit(false)
+      }
+    })
   } yield xa
 
   override def run(args: List[String]): IO[ExitCode] = {
@@ -51,9 +51,9 @@ object Run extends IOApp {
     createTransactor.use { xa =>
       for {
         _ <- IO {
-              print("Press enter to continue >>")
-              StdIn.readLine
-            }
+          print("Press enter to continue >>")
+          StdIn.readLine
+        }
         _ <- (schema.createTable >> snapshotStore.createTable).transact(xa)
         accounts = deploy(xa)
         program = fs2.Stream
@@ -94,13 +94,13 @@ class PostgresRuntimeTest extends FunSuite with Matchers with BeforeAndAfterAll 
     ce <- ExecutionContexts.fixedThreadPool[IO](32) // our connect EC
     te <- ExecutionContexts.cachedThreadPool[IO]
     xa <- HikariTransactor.newHikariTransactor[IO](
-           "org.postgresql.Driver",
-           "jdbc:postgresql://localhost/postgres",
-           "user",
-           "",
-           ce,
-           te
-         )
+      "org.postgresql.Driver",
+      "jdbc:postgresql://localhost/postgres",
+      "user",
+      "",
+      ce,
+      te
+    )
   } yield xa
 
   private val (xa, shutdownTransactor) =

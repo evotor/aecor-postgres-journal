@@ -8,16 +8,20 @@ import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import cats.data.NonEmptyChain
 import cats.effect.IO
 import cats.implicits._
-import doobie.util.transactor.Transactor
+import doobie.ExecutionContexts
+import doobie.hikari.HikariTransactor
 import doobie.implicits._
-import org.scalatest.{ BeforeAndAfterAll, FunSuite, Matchers }
+import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 import fs2._
+
 import scala.concurrent.duration._
 
 class PostgresEventJournalEventsByTagGapTest extends FunSuite with Matchers with BeforeAndAfterAll {
   implicit val contextShift =
     IO.contextShift(scala.concurrent.ExecutionContext.global)
+
   implicit val timer = IO.timer(scala.concurrent.ExecutionContext.global)
+
   val stringSerializer: Serializer[String] = new Serializer[String] {
     override def serialize(a: String): (TypeHint, Array[Byte]) =
       ("", a.getBytes(java.nio.charset.StandardCharsets.UTF_8))
@@ -26,18 +30,33 @@ class PostgresEventJournalEventsByTagGapTest extends FunSuite with Matchers with
       Right(new String(bytes, java.nio.charset.StandardCharsets.UTF_8))
   }
 
-  private val xa = Transactor.fromDriverManager[IO](
-    "org.postgresql.Driver",
-    s"jdbc:postgresql://localhost:5432/postgres",
-    "user",
-    ""
-  )
+//  private val xa = Transactor.fromDriverManager[IO](
+//    "org.postgresql.Driver",
+//    s"jdbc:postgresql://localhost:5432/postgres",
+//    "user",
+//    ""
+//  )
+
+  private val createTransactor = for {
+    ce <- ExecutionContexts.fixedThreadPool[IO](32) // our connect EC
+    te <- ExecutionContexts.cachedThreadPool[IO]
+    xa <- HikariTransactor.newHikariTransactor[IO](
+      "org.postgresql.Driver",
+      "jdbc:postgresql://localhost/postgres",
+      "user",
+      "",
+      ce,
+      te
+    )
+  } yield xa
+
+  private val (xa, shutdownTransactor) =
+    createTransactor.allocated.unsafeRunSync()
 
   val schema = JournalSchema(s"test_${UUID.randomUUID().toString.replace('-', '_')}")
   val tagging = Tagging.partitioned[String](10)(EventTag("test-skip"))
-  val journalCIO = PostgresEventJournal(schema, tagging, stringSerializer)
-  val journal = journalCIO.transact(xa)
-
+  val journal = PostgresEventJournal(schema, tagging, stringSerializer).transactK(xa)
+  val queries = PostgresEventJournalQueries[String](schema, stringSerializer, 100.millis, xa)
   override protected def beforeAll(): Unit =
     schema.createTable.transact(xa).unsafeRunSync()
 
@@ -84,8 +103,7 @@ class PostgresEventJournalEventsByTagGapTest extends FunSuite with Matchers with
     val foldEvents = Stream
       .emits(tagging.tags)
       .map { tag =>
-        journalCIO
-          .queries(100.millis, xa)
+        queries
           .eventsByTag(tag, Offset(0L))
       }
       .parJoinUnbounded
@@ -116,6 +134,6 @@ class PostgresEventJournalEventsByTagGapTest extends FunSuite with Matchers with
   }
 
   override protected def afterAll(): Unit =
-    schema.dropTable.transact(xa).unsafeRunSync()
+    (schema.dropTable.transact(xa) >> shutdownTransactor).unsafeRunSync()
 
 }

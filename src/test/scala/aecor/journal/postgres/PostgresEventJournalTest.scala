@@ -8,7 +8,7 @@ import aecor.journal.postgres.PostgresEventJournal.Serializer
 import cats.data.NonEmptyChain
 import cats.effect.IO
 import org.postgresql.util.PSQLException
-import org.scalatest.{ BeforeAndAfterAll, FunSuite, Matchers }
+import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 import doobie.util.transactor.Transactor
 import doobie.implicits._
 
@@ -35,10 +35,8 @@ class PostgresEventJournalTest extends FunSuite with Matchers with BeforeAndAfte
 
   val schema = JournalSchema(s"test_${UUID.randomUUID().toString.replace('-', '_')}")
   val tagging = Tagging.const[String](EventTag("test"))
-  val journalCIO = PostgresEventJournal(schema, tagging, stringSerializer)
-  val journal = journalCIO.transact(xa)
-
-  val journalQueries = journalCIO.queries(1.second, xa)
+  val journal = PostgresEventJournal(schema, tagging, stringSerializer).transactK(xa)
+  val journalQueries = PostgresEventJournalQueries[String](schema, stringSerializer, 1.second, xa)
 
   val consumerId = ConsumerId("C1")
 
@@ -48,19 +46,19 @@ class PostgresEventJournalTest extends FunSuite with Matchers with BeforeAndAfte
   test("Journal appends and folds events from zero offset") {
     val x = for {
       _ <- journal.append("a", 1L, NonEmptyChain("1", "2"))
-      folded <- journal.foldById("a", 1L, Vector.empty[String])((acc, e) => Folded.next(acc :+ e))
+      folded <- journal.loadEvents("a", 1L).map(_.payload).compile.toVector
     } yield folded
 
-    x.unsafeRunSync() should be(Folded.next(Vector("1", "2")))
+    x.unsafeRunSync() should be(Vector("1", "2"))
   }
 
   test("Journal appends and folds events from non-zero offset") {
     val x = for {
       _ <- journal.append("a", 3L, NonEmptyChain("3"))
-      folded <- journal.foldById("a", 2L, Vector.empty[String])((acc, e) => Folded.next(acc :+ e))
+      folded <- journal.loadEvents("a", 2L).map(_.payload).compile.toVector
     } yield folded
 
-    x.unsafeRunSync() should be(Folded.next(Vector("2", "3")))
+    x.unsafeRunSync() should be(Vector("2", "3"))
   }
 
   test("Journal rejects append at existing offset") {
@@ -75,9 +73,9 @@ class PostgresEventJournalTest extends FunSuite with Matchers with BeforeAndAfte
       _ <- journal.append("b", 1L, NonEmptyChain("b1"))
       _ <- journal.append("a", 4L, NonEmptyChain("a4"))
       folded <- journalQueries
-                 .currentEventsByTag(tagging.tag, Offset.zero)
-                 .compile
-                 .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
+        .currentEventsByTag(tagging.tag, Offset.zero)
+        .compile
+        .toVector
     } yield folded
 
     val expected = Vector(
@@ -95,7 +93,7 @@ class PostgresEventJournalTest extends FunSuite with Matchers with BeforeAndAfte
     val x = journalQueries
       .currentEventsByTag(tagging.tag, Offset(2L))
       .compile
-      .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
+      .toVector
 
     val expected =
       Vector(
@@ -114,7 +112,7 @@ class PostgresEventJournalTest extends FunSuite with Matchers with BeforeAndAfte
       .eventsByTag(tagging.tag, Offset.zero)
       .take(6)
       .compile
-      .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
+      .toVector
 
     val x = for {
       fiber <- foldEvents.start
@@ -141,7 +139,7 @@ class PostgresEventJournalTest extends FunSuite with Matchers with BeforeAndAfte
       .eventsByTag(tagging.tag, Offset(6L))
       .take(2)
       .compile
-      .fold(Vector.empty[(Offset, EntityEvent[String, String])])(_ :+ _)
+      .toVector
 
     val x = for {
       fiber <- foldEvents.start
@@ -158,12 +156,12 @@ class PostgresEventJournalTest extends FunSuite with Matchers with BeforeAndAfte
   test("Journal correctly uses offset store for current events by tag") {
     val x = for {
       offset <- journalQueries
-                 .currentEventsByTag(tagging.tag, Offset.zero)
-                 .take(3)
-                 .map(_._1)
-                 .compile
-                 .last
-                 .map(_.getOrElse(Offset.zero))
+        .currentEventsByTag(tagging.tag, Offset.zero)
+        .take(3)
+        .map(_._1)
+        .compile
+        .last
+        .map(_.getOrElse(Offset.zero))
       os <- TestKeyValueStore[IO](Map(TagConsumer(tagging.tag, consumerId) -> offset))
       runOnce = fs2.Stream
         .force(

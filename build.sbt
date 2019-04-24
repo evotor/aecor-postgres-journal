@@ -15,8 +15,9 @@ lazy val scalaTestVersion = "3.0.1"
 lazy val scalaCheckShapelessVersion = "1.1.4"
 lazy val catsVersion = "1.4.0"
 lazy val circeVersion = "0.10.1"
-lazy val scalametaParadiseVersion = "3.0.0-M11"
 lazy val logbackVersion = "1.2.3"
+lazy val catsEffectVersion = "1.2.0"
+lazy val catsTaglessVersion = "0.5"
 
 resolvers ++= Seq(
   Resolver.sonatypeRepo("public")
@@ -27,12 +28,12 @@ libraryDependencies ++= Seq(
   "org.tpolecat" %% "doobie-core" % doobieVersion,
   "org.tpolecat" %% "doobie-postgres" % doobieVersion,
   "org.tpolecat" %% "doobie-hikari" % doobieVersion,
-  "org.typelevel" %% "cats-effect" % "1.1.0",
+  "org.typelevel" %% "cats-effect" % catsEffectVersion,
   "org.scalacheck" %% "scalacheck" % scalaCheckVersion % Test,
   "org.scalatest" %% "scalatest" % scalaTestVersion % Test,
   "org.tpolecat" %% "doobie-scalatest" % doobieVersion % Test,
-  "com.github.alexarchambault" %% "scalacheck-shapeless_1.13" % scalaCheckShapelessVersion % Test,
   "org.typelevel" %% "cats-testkit" % catsVersion % Test,
+  "org.typelevel" %% "cats-tagless-macros" % catsTaglessVersion % Test,
   "io.circe" %% "circe-core" % circeVersion % Test,
   "io.circe" %% "circe-generic" % circeVersion % Test,
   "io.circe" %% "circe-parser" % circeVersion % Test,
@@ -40,15 +41,14 @@ libraryDependencies ++= Seq(
   "ch.qos.logback" % "logback-classic" % logbackVersion % Test
 )
 
-addCompilerPlugin(
-  "org.scalameta" % "paradise" % scalametaParadiseVersion cross CrossVersion.full
-)
+addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
+
+addCommandAlias("fmt", "; compile:scalafmt; test:scalafmt; scalafmtSbt")
 
 scalacOptions ++= Seq(
   "-J-Xss16m",
   "-deprecation",
-  "-encoding",
-  "utf-8",
+  "-encoding", "utf-8",
   "-explaintypes",
   "-feature",
   "-language:existentials",
@@ -92,14 +92,12 @@ scalacOptions ++= Seq(
   "-Ywarn-unused:patvars",
   "-Ywarn-unused:privates",
   "-Ywarn-value-discard",
-  "-Xsource:2.13",
-  "-Xplugin-require:macroparadise"
+  "-Xsource:2.13"
 )
 addCompilerPlugin("org.spire-math" %% "kind-projector" % kindProjectorVersion)
 
 parallelExecution in Test := false
-scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports",
-                                            "-Xfatal-warnings")
+scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings")
 
 publishMavenStyle := true
 
@@ -111,9 +109,9 @@ releaseVersionBump := sbtrelease.Version.Bump.Minor
 publishTo := {
   val nexus = "http://nexus.market.local/repository/maven-"
   if (isSnapshot.value)
-    Some("snapshots" at nexus + "snapshots/")
+    Some("snapshots".at(nexus + "snapshots/"))
   else
-    Some("releases" at nexus + "releases/")
+    Some("releases".at(nexus + "releases/"))
 }
 
 releaseCrossBuild := true
@@ -132,9 +130,9 @@ pomIncludeRepository := { _ =>
 publishTo := {
   val nexus = "https://oss.sonatype.org/"
   if (isSnapshot.value)
-    Some("snapshots" at nexus + "content/repositories/snapshots")
+    Some("snapshots".at(nexus + "content/repositories/snapshots"))
   else
-    Some("releases" at nexus + "service/local/staging/deploy/maven2")
+    Some("releases".at(nexus + "service/local/staging/deploy/maven2"))
 }
 autoAPIMappings := true
 scmInfo := Some(

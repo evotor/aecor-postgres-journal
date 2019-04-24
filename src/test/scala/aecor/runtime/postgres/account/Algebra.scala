@@ -1,13 +1,17 @@
 package aecor.runtime.postgres.account
-import aecor.encoding.{ KeyDecoder, KeyEncoder }
+import aecor.encoding.{KeyDecoder, KeyEncoder}
 import cats.kernel.Hash
-import cats.tagless.autoFunctorK
-@autoFunctorK(true)
+import cats.tagless.FunctorK
+
 trait Algebra[F[_]] {
   def open(checkBalance: Boolean): F[Unit]
   def credit(transactionId: TransactionId, amount: Amount): F[Unit]
   def debit(transactionId: TransactionId, amount: Amount): F[Unit]
   def getBalance: F[Amount]
+}
+
+object Algebra {
+  implicit val catsTaglessFunctorK: FunctorK[Algebra] = cats.tagless.Derive.functorK[Algebra]
 }
 
 final case class AccountId(value: String) extends AnyVal

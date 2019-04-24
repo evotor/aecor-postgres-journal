@@ -5,7 +5,7 @@ import aecor.encoding.KeyDecoder
 import aecor.journal.postgres.PostgresEventJournal.Serializer
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.runtime.KeyValueStore
-import cats.{ Functor, Monad }
+import cats.{Functor, Monad}
 import cats.effect.Timer
 import doobie.util.transactor.Transactor
 import fs2.Stream
@@ -20,7 +20,7 @@ object PostgresEventJournalQueries {
       serializer: Serializer[E],
       pollInterval: FiniteDuration,
       xa: Transactor[F]
-    )(implicit decodeKey: KeyDecoder[K]): PostgresEventJournalQueries[F, K, E] =
+    )(implicit K: KeyDecoder[K]): PostgresEventJournalQueries[F, K, E] =
       new PostgresEventJournalQueries(schema, serializer, pollInterval, xa)
   }
 
