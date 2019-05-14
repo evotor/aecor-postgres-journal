@@ -4,10 +4,11 @@ import aecor.data.EventsourcedBehavior
 import aecor.runtime.EventJournal
 import aecor.runtime.Eventsourced.{Entities, Snapshotting}
 import aecor.runtime.eventsourced.{ActionRunner, EventsourcedState}
+import cats.effect.Bracket
 import cats.implicits._
 import cats.kernel.Hash
 import cats.tagless.FunctorK
-import cats.{~>, Monad}
+import cats.~>
 import doobie._
 import doobie.implicits._
 import cats.tagless.implicits._
@@ -23,7 +24,7 @@ object PostgresRuntime {
       .query[Unit]
       .unique
 
-  def apply[M[_[_]]: FunctorK, F[_]: Monad, S, E, K: Hash](
+  def apply[M[_[_]]: FunctorK, F[_]: Bracket[?[_], Throwable], S, E, K: Hash](
     typeName: String,
     behavior: EventsourcedBehavior[M, ConnectionIO, S, E],
     journal: EventJournal[ConnectionIO, K, E],
@@ -31,7 +32,6 @@ object PostgresRuntime {
     transactor: Transactor[F]
   ): Entities[K, M, F] = {
     val strategy = EventsourcedState(behavior.initial, behavior.update, journal)
-
     Entities { key =>
       val runner = ActionRunner(
         key,

@@ -48,7 +48,8 @@ final class PostgresEventJournalQueries[F[_]: Monad: Timer, K, E](
     val sleep = Stream.sleep_(pollInterval)
     currentEventsByTag(tag, offset).zipWithNext.noneTerminate
       .flatMap {
-        case Some((x, Some(_))) => Stream.emit(x)
+        case Some((x, Some(_))) =>
+          Stream.emit(x)
         case Some((x @ (latestOffset, _), None)) =>
           Stream.emit(x) ++
             sleep ++

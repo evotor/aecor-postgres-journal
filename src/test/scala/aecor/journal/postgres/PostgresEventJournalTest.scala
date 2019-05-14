@@ -46,7 +46,7 @@ class PostgresEventJournalTest extends FunSuite with Matchers with BeforeAndAfte
   test("Journal appends and folds events from zero offset") {
     val x = for {
       _ <- journal.append("a", 1L, NonEmptyChain("1", "2"))
-      folded <- journal.loadEvents("a", 1L).map(_.payload).compile.toVector
+      folded <- journal.read("a", 1L).map(_.payload).compile.toVector
     } yield folded
 
     x.unsafeRunSync() should be(Vector("1", "2"))
@@ -55,7 +55,7 @@ class PostgresEventJournalTest extends FunSuite with Matchers with BeforeAndAfte
   test("Journal appends and folds events from non-zero offset") {
     val x = for {
       _ <- journal.append("a", 3L, NonEmptyChain("3"))
-      folded <- journal.loadEvents("a", 2L).map(_.payload).compile.toVector
+      folded <- journal.read("a", 2L).map(_.payload).compile.toVector
     } yield folded
 
     x.unsafeRunSync() should be(Vector("2", "3"))

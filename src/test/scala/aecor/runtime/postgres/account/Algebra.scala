@@ -1,7 +1,7 @@
 package aecor.runtime.postgres.account
 import aecor.encoding.{KeyDecoder, KeyEncoder}
 import cats.kernel.Hash
-import cats.tagless.FunctorK
+import cats.tagless.{Derive, FunctorK}
 
 trait Algebra[F[_]] {
   def open(checkBalance: Boolean): F[Unit]
@@ -11,7 +11,7 @@ trait Algebra[F[_]] {
 }
 
 object Algebra {
-  implicit val catsTaglessFunctorK: FunctorK[Algebra] = cats.tagless.Derive.functorK[Algebra]
+  implicit val catsTaglessFunctorK: FunctorK[Algebra] = Derive.functorK[Algebra]
 }
 
 final case class AccountId(value: String) extends AnyVal

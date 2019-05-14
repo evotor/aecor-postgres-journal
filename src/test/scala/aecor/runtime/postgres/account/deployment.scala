@@ -6,7 +6,7 @@ import aecor.runtime.Eventsourced
 import aecor.runtime.Eventsourced.Snapshotting
 import aecor.runtime.postgres.PostgresRuntime
 import aecor.runtime.postgres.account.EventsourcedAlgebra.AccountState
-import cats.Monad
+import cats.effect.Bracket
 import doobie.free.connection.ConnectionIO
 import doobie.implicits._
 import doobie.util.transactor.Transactor
@@ -24,7 +24,7 @@ object deployment {
 
   private val behaviorCIO = EventsourcedAlgebra.behavior[ConnectionIO]
 
-  def deploy[F[_]: Monad](xa: Transactor[F]): Accounts[F] = {
+  def deploy[F[_]: Bracket[?[_], Throwable]](xa: Transactor[F]): Accounts[F] = {
 
     Snapshotting.snapshotEach(
       40L,

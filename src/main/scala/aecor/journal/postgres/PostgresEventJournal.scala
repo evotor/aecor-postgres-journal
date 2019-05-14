@@ -7,7 +7,7 @@ import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.runtime.EventJournal
 import cats.Monad
 import cats.data.NonEmptyChain
-import cats.effect.Timer
+import cats.effect.{Bracket, Timer}
 import cats.implicits.{none, _}
 import doobie._
 import doobie.implicits._
@@ -49,7 +49,7 @@ final class PostgresEventJournal[K, E](schema: JournalSchema, tagging: Tagging[K
       insertEvents
   }
 
-  override def loadEvents(key: K, offset: Long): Stream[doobie.ConnectionIO, EntityEvent[K, E]] =
+  override def read(key: K, offset: Long): Stream[doobie.ConnectionIO, EntityEvent[K, E]] =
     (fr"SELECT type_hint, bytes, seq_nr FROM"
       ++ Fragment.const(tableName)
       ++ fr"WHERE key = $key and seq_nr >= $offset ORDER BY seq_nr ASC")
@@ -62,12 +62,12 @@ final class PostgresEventJournal[K, E](schema: JournalSchema, tagging: Tagging[K
           }
       }
 
-  def transactK[F[_]: Monad](xa: Transactor[F]): EventJournal[F, K, E] =
+  def transactK[F[_]: Bracket[?[_], Throwable]](xa: Transactor[F]): EventJournal[F, K, E] =
     new EventJournal[F, K, E] {
       override def append(entityKey: K, sequenceNr: Long, events: NonEmptyChain[E]): F[Unit] =
         self.append(entityKey, sequenceNr, events).transact(xa)
-      override def loadEvents(key: K, offset: Long): Stream[F, EntityEvent[K, E]] =
-        self.loadEvents(key, offset).transact(xa)
+      override def read(key: K, offset: Long): Stream[F, EntityEvent[K, E]] =
+        self.read(key, offset).transact(xa)
     }
 
   def queries[F[_]: Monad: Timer](pollingInterval: FiniteDuration, xa: Transactor[F])(
