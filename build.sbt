@@ -9,8 +9,8 @@ scalaVersion := "2.12.8"
 
 lazy val kindProjectorVersion = "0.9.10"
 lazy val aecorVersion = "0.19.0-SNAPSHOT"
-lazy val doobieVersion = "0.7.0-M5"
-lazy val catsEffectVersion = "1.3.0"
+lazy val doobieVersion = "0.7.0"
+lazy val catsEffectVersion = "1.3.1"
 
 lazy val scalaCheckVersion = "1.14.0"
 lazy val scalaTestVersion = "3.0.7"
@@ -18,7 +18,7 @@ lazy val scalaCheckShapelessVersion = "1.1.4"
 lazy val catsVersion = "1.6.0"
 lazy val circeVersion = "0.11.1"
 lazy val logbackVersion = "1.2.3"
-lazy val catsTaglessVersion = "0.6"
+lazy val catsTaglessVersion = "0.8"
 
 resolvers ++= Seq(
   Resolver.sonatypeRepo("public")

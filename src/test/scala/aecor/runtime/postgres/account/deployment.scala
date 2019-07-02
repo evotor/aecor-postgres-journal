@@ -2,8 +2,7 @@ package aecor.runtime.postgres.account
 
 import aecor.data.{EventTag, Tagging}
 import aecor.journal.postgres._
-import aecor.runtime.Eventsourced
-import aecor.runtime.Eventsourced.Snapshotting
+import aecor.runtime.{Eventsourced, Snapshotting}
 import aecor.runtime.postgres.PostgresRuntime
 import aecor.runtime.postgres.account.EventsourcedAlgebra.AccountState
 import cats.effect.Bracket
@@ -26,13 +25,13 @@ object deployment {
 
   def deploy[F[_]: Bracket[?[_], Throwable]](xa: Transactor[F]): Accounts[F] = {
 
-    Snapshotting.snapshotEach(
+    Snapshotting.eachVersion(
       40L,
       new OptionalKeyValueStore(snapshotStore).mapK(xa.trans)
     )
 
     val behavior =
-      PostgresRuntime("Account", behaviorCIO, journal, Snapshotting.noSnapshot[F, AccountId, Option[AccountState]], xa)
+      PostgresRuntime("Account", behaviorCIO, journal, Snapshotting.disabled[F, AccountId, Option[AccountState]], xa)
 
     Eventsourced.Entities.fromEitherK(
       behavior

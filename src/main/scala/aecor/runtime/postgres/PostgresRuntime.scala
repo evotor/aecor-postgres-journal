@@ -1,17 +1,17 @@
 package aecor.runtime.postgres
 
 import aecor.data.EventsourcedBehavior
-import aecor.runtime.EventJournal
-import aecor.runtime.Eventsourced.{Entities, Snapshotting}
-import aecor.runtime.eventsourced.{ActionRunner, EventsourcedState}
+import aecor.runtime.Eventsourced.Entities
+import aecor.runtime.eventsourced.ActionRunner
+import aecor.runtime.{EventJournal, Snapshotting}
 import cats.effect.Bracket
 import cats.implicits._
 import cats.kernel.Hash
 import cats.tagless.FunctorK
+import cats.tagless.implicits._
 import cats.~>
 import doobie._
 import doobie.implicits._
-import cats.tagless.implicits._
 
 object PostgresRuntime {
   def wrapBefore(before: ConnectionIO[Unit]): ConnectionIO ~> ConnectionIO =
@@ -30,17 +30,17 @@ object PostgresRuntime {
     journal: EventJournal[ConnectionIO, K, E],
     snapshotting: Snapshotting[F, K, S],
     transactor: Transactor[F]
-  ): Entities[K, M, F] = {
-    val strategy = EventsourcedState(behavior.initial, behavior.update, journal)
+  ): Entities[K, M, F] =
     Entities { key =>
       val runner = ActionRunner(
         key,
-        strategy,
+        behavior.create,
+        behavior.update,
+        journal,
         snapshotting,
         wrapBefore(lockKey(typeName, key)).andThen(transactor.trans)
       )
       behavior.actions.mapK(runner)
     }
-  }
 
 }
