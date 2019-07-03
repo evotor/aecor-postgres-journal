@@ -93,12 +93,14 @@ class PostgresEventJournalEventsByTagGapTest extends FunSuite with Matchers with
 
     val allEventsCount = aggregateIds.size * eventsForEachAggregate
 
-    def appendEvents(events: List[(Long, String, String)]) = events.traverse {
-      case (offset, id, content) =>
-        journal.append(id, offset, NonEmptyChain(content))
+    def appendEvents(events: List[(Long, String, String)]) = events.grouped(10).toList.traverse {
+      case (offset, id, content) :: others =>
+        journal.append(id, offset, NonEmptyChain(content, others.map(_._3): _*))
+      case Nil =>
+        IO.unit
     }
 
-    val appendAllEvents = allEvents.parTraverse(appendEvents).void
+    val appendAllEvents = fs2.Stream.emits(allEvents).covary[IO].parEvalMapUnordered(100)(appendEvents).compile.drain
 
     val foldEvents = Stream
       .emits(tagging.tags)
