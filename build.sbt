@@ -5,15 +5,15 @@ name := "aecor-postgres-journal"
 
 organization := "io.aecor"
 
-scalaVersion := "2.12.7"
+scalaVersion := "2.12.8"
 
-lazy val kindProjectorVersion = "0.9.7"
+lazy val kindProjectorVersion = "0.9.10"
 lazy val aecorVersion = "0.18.0"
-lazy val doobieVersion = "0.6.0"
-lazy val scalaCheckVersion = "1.13.4"
-lazy val scalaTestVersion = "3.0.1"
-lazy val scalaCheckShapelessVersion = "1.1.4"
-lazy val catsVersion = "1.4.0"
+lazy val doobieVersion = "0.7.0"
+lazy val scalaCheckVersion = "1.14.0"
+lazy val scalaTestVersion = "3.0.8"
+lazy val scalaCheckShapelessVersion = "1.1.8"
+lazy val catsVersion = "1.6.1"
 
 resolvers ++= Seq(
   Resolver.sonatypeRepo("public")
