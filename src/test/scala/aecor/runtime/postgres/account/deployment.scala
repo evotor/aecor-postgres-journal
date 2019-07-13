@@ -33,7 +33,7 @@ object deployment {
     val behavior =
       PostgresRuntime("Account", behaviorCIO, journal, Snapshotting.disabled[F, AccountId, Option[AccountState]], xa)
 
-    Eventsourced.Entities.fromEitherK(
+    Eventsourced.Entities.rejectable(
       behavior
     )
   }

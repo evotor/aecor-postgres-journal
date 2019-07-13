@@ -74,6 +74,8 @@ final class PostgresEventJournal[K, E](schema: JournalSchema, tagging: Tagging[K
     implicit K: KeyDecoder[K]
   ): PostgresEventJournalQueries[F, K, E] =
     PostgresEventJournalQueries[K](schema, serializer, pollingInterval, xa)
+
+  def createTable: ConnectionIO[Unit] = schema.createTable
 }
 
 object PostgresEventJournal {

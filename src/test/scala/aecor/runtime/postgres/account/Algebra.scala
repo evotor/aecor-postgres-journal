@@ -5,9 +5,9 @@ import cats.tagless.{Derive, FunctorK}
 
 trait Algebra[F[_]] {
   def open(checkBalance: Boolean): F[Unit]
-  def credit(transactionId: TransactionId, amount: Amount): F[Unit]
-  def debit(transactionId: TransactionId, amount: Amount): F[Unit]
-  def getBalance: F[Amount]
+  def credit(transactionId: TransactionId, amount: BigDecimal): F[Unit]
+  def debit(transactionId: TransactionId, amount: BigDecimal): F[Unit]
+  def getBalance: F[BigDecimal]
 }
 
 object Algebra {
@@ -23,14 +23,3 @@ object AccountId {
 }
 
 final case class TransactionId(asString: String) extends AnyVal
-final case class Amount(asLong: Long) extends AnyVal {
-  def >(other: Amount): Boolean = asLong > other.asLong
-  def <=(other: Amount): Boolean = asLong <= other.asLong
-  def >=(other: Amount): Boolean = asLong >= other.asLong
-  def -(other: Amount): Amount = Amount(asLong - other.asLong)
-  def +(other: Amount): Amount = Amount(asLong + other.asLong)
-}
-
-object Amount {
-  val zero: Amount = Amount(0)
-}

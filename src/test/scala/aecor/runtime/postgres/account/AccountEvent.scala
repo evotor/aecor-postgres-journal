@@ -14,9 +14,9 @@ sealed abstract class AccountEvent extends Product with Serializable
 object AccountEvent {
   case class AccountOpened(checkBalance: Boolean) extends AccountEvent
 
-  case class AccountDebited(transactionId: TransactionId, amount: Amount) extends AccountEvent
+  case class AccountDebited(transactionId: TransactionId, amount: BigDecimal) extends AccountEvent
 
-  case class AccountCredited(transactionId: TransactionId, amount: Amount) extends AccountEvent
+  case class AccountCredited(transactionId: TransactionId, amount: BigDecimal) extends AccountEvent
 
   implicit val serializer: Serializer[AccountEvent] = new Serializer[AccountEvent] {
 

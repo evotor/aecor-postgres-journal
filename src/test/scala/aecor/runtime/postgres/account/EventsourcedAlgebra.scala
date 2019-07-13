@@ -31,7 +31,7 @@ final class EventsourcedAlgebra[F[_]](
         ().pure[F]
     }
 
-  override def credit(transactionId: TransactionId, amount: Amount): F[Unit] =
+  override def credit(transactionId: TransactionId, amount: BigDecimal): F[Unit] =
     read.flatMap {
       case Some(account) =>
         if (account.hasProcessedTransaction(transactionId)) {
@@ -43,7 +43,7 @@ final class EventsourcedAlgebra[F[_]](
         reject(AccountDoesNotExist)
     }
 
-  override def debit(transactionId: TransactionId, amount: Amount): F[Unit] =
+  override def debit(transactionId: TransactionId, amount: BigDecimal): F[Unit] =
     read.flatMap {
       case Some(account) =>
         if (account.hasProcessedTransaction(transactionId)) {
@@ -59,7 +59,7 @@ final class EventsourcedAlgebra[F[_]](
         reject(AccountDoesNotExist)
     }
 
-  override def getBalance: F[Amount] = read.flatMap {
+  override def getBalance: F[BigDecimal] = read.flatMap {
     case Some(account) =>
       account.balance.pure[F]
     case None =>
@@ -69,23 +69,19 @@ final class EventsourcedAlgebra[F[_]](
 
 object EventsourcedAlgebra {
 
-  def apply[F[_]](
-    implicit F: MonadActionReject[F, Option[AccountState], AccountEvent, Rejection]
-  ): Algebra[F] = new EventsourcedAlgebra
-
   def behavior[F[_]: Monad]: EventsourcedBehavior[EitherK[Algebra, Rejection, ?[_]], F, Option[
     AccountState
   ], AccountEvent] =
     EventsourcedBehavior
-      .optionalRejectable(EventsourcedAlgebra.apply, AccountState.fromEvent, _.applyEvent(_))
+      .rejectable(new EventsourcedAlgebra, AccountState.fold)
 
   final val rootAccountId: AccountId = AccountId("ROOT")
-  final case class AccountState(balance: Amount, processedTransactions: Set[TransactionId], checkBalance: Boolean) {
+  final case class AccountState(balance: BigDecimal, processedTransactions: Set[TransactionId], checkBalance: Boolean) {
     def hasProcessedTransaction(transactionId: TransactionId): Boolean =
       processedTransactions.contains(transactionId)
-    def hasFunds(amount: Amount): Boolean =
+    def hasFunds(amount: BigDecimal): Boolean =
       !checkBalance || balance >= amount
-    def applyEvent(event: AccountEvent): Folded[AccountState] = event match {
+    def update(event: AccountEvent): Folded[AccountState] = event match {
       case AccountOpened(_) => impossible
       case AccountDebited(transactionId, amount) =>
         copy(
@@ -101,19 +97,18 @@ object EventsourcedAlgebra {
   }
   object AccountState {
     def fromEvent(event: AccountEvent): Folded[AccountState] = event match {
-      case AccountOpened(checkBalance) => AccountState(Amount.zero, Set.empty, checkBalance).next
+      case AccountOpened(checkBalance) => AccountState(0, Set.empty, checkBalance).next
       case _                           => impossible
     }
     implicit val serializer: Serializer[AccountState] = new Serializer[AccountState] {
-
       override def serialize(a: AccountState): (TypeHint, Array[Byte]) =
         ("", a.asJson.noSpaces.getBytes(StandardCharsets.UTF_8))
-
       override def deserialize(typeHint: TypeHint, bytes: Array[Byte]): Either[Throwable, AccountState] =
         jawn
           .parseByteBuffer(ByteBuffer.wrap(bytes))
           .flatMap(_.as[AccountState])
-
     }
+    val fold: Fold[Folded, Option[AccountState], AccountEvent] =
+      Fold.optional(fromEvent)(_.update(_))
   }
 }

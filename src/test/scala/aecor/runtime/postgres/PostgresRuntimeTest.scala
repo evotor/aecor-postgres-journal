@@ -46,7 +46,7 @@ object Run extends IOApp {
     val rounds = 50
     val parallelism = 256
     val size = 1200
-    val amount = Amount(1)
+    val amount = 1
     val transactions = (1 to size).toVector.map(x => TransactionId(s"$x"))
     createTransactor.use { xa =>
       for {
@@ -111,7 +111,7 @@ class PostgresRuntimeTest extends FunSuite with Matchers with BeforeAndAfterAll 
     val rounds = 10000
     val parallelism = 30
     val size = 2
-    val amount = Amount(1)
+    val amount = 1
     val transactions = (1 to size).toVector.map(x => TransactionId(s"$x"))
 
     val program = fs2.Stream
