@@ -3,18 +3,19 @@ package aecor.journal.postgres
 import java.util.UUID
 
 import aecor.data._
-import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.journal.postgres.PostgresEventJournal.Serializer
+import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import cats.data.NonEmptyChain
 import cats.effect.IO
-import org.postgresql.util.PSQLException
-import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
-import doobie.util.transactor.Transactor
 import doobie.implicits._
+import doobie.util.transactor.Transactor
+import org.postgresql.util.PSQLException
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.{BeforeAndAfterAll, Matchers}
 
 import scala.concurrent.duration._
 
-class PostgresEventJournalTest extends FunSuite with Matchers with BeforeAndAfterAll {
+class PostgresEventJournalTest extends AnyFunSuite with Matchers with BeforeAndAfterAll {
   implicit val contextShift =
     IO.contextShift(scala.concurrent.ExecutionContext.global)
   implicit val timer = IO.timer(scala.concurrent.ExecutionContext.global)

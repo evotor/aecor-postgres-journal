@@ -4,11 +4,12 @@ import java.util.UUID
 
 import aecor.data.{ConsumerId, EventTag, TagConsumer}
 import cats.effect.IO
-import doobie.util.transactor.Transactor
-import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 import doobie.implicits._
+import doobie.util.transactor.Transactor
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.{BeforeAndAfterAll, Matchers}
 
-class PostgresOffsetStoreTest extends FunSuite with Matchers with BeforeAndAfterAll {
+class PostgresOffsetStoreTest extends AnyFunSuite with Matchers with BeforeAndAfterAll {
   implicit val contextShift = IO.contextShift(scala.concurrent.ExecutionContext.global)
   implicit val timer = IO.timer(scala.concurrent.ExecutionContext.global)
   private val xa = Transactor.fromDriverManager[IO](

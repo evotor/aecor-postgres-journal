@@ -7,85 +7,10 @@ import cats.implicits._
 import doobie._
 import doobie.hikari._
 import doobie.implicits._
-import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
-import fs2.Stream
-import scala.io.StdIn
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.{BeforeAndAfterAll, Matchers}
 
-object Run extends IOApp {
-
-  private val createTransactor = for {
-    ce <- ExecutionContexts
-      .cachedThreadPool[IO] //ExecutionContexts.fixedThreadPool[IO](512) // our connect EC
-    te <- ExecutionContexts.cachedThreadPool[IO]
-//    ce = te
-    xa <- HikariTransactor.newHikariTransactor[IO](
-      "org.postgresql.Driver",
-      "jdbc:postgresql://test-pgpool03.market.local/aecor_runtime_test",
-      "monkey_user",
-      "monkey_password",
-      ce,
-      te
-    )
-    _ = HikariTransactor.newHikariTransactor[IO](
-      "org.postgresql.Driver",
-      "jdbc:postgresql://localhost/postgres",
-      "user",
-      "",
-      ce,
-      te
-    )
-    _ <- Resource.liftF(xa.configure { x =>
-      IO {
-        x.setMaximumPoolSize(256)
-        x.setAutoCommit(false)
-      }
-    })
-  } yield xa
-
-  override def run(args: List[String]): IO[ExitCode] = {
-    val rounds = 50
-    val parallelism = 256
-    val size = 1200
-    val amount = 1
-    val transactions = (1 to size).toVector.map(x => TransactionId(s"$x"))
-    createTransactor.use { xa =>
-      for {
-        _ <- IO {
-          print("Press enter to continue >>")
-          StdIn.readLine
-        }
-        _ <- (schema.createTable >> snapshotStore.createTable).transact(xa)
-        accounts = deploy(xa)
-        program = fs2.Stream
-          .range(0, rounds)
-//          .range(rounds, rounds + rounds)
-          .map(x => accounts(AccountId(s"$x")))
-          .covary[IO]
-          .map { account =>
-            val open = Stream.eval(account.open(checkBalance = false))
-            val credit = Stream(transactions: _*)
-              .covary[IO]
-              .mapAsyncUnordered(5)(account.credit(_, amount))
-            open >> credit
-          }
-          .parJoin(parallelism)
-          .compile
-          .drain
-          .as(rounds * (size + 1))
-
-        start <- IO(System.currentTimeMillis())
-        total <- program
-        end <- IO(System.currentTimeMillis())
-        _ = println(total)
-        rate = (total / ((end - start) / 1000.0)).floor
-        _ <- IO(println(s"$rate btx/s"))
-        _ <- (schema.dropTable >> snapshotStore.dropTable).transact(xa)
-      } yield ExitCode.Success
-    }
-  }
-}
-
-class PostgresRuntimeTest extends FunSuite with Matchers with BeforeAndAfterAll {
+class PostgresRuntimeTest extends AnyFunSuite with Matchers with BeforeAndAfterAll {
 
   implicit val contextShift: ContextShift[IO] =
     IO.contextShift(scala.concurrent.ExecutionContext.global)
