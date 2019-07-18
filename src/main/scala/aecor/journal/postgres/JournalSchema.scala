@@ -9,10 +9,15 @@ import cats.implicits.{none, _}
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
-
+import scala.concurrent.duration._
 import scala.concurrent.duration.FiniteDuration
 
-final case class JournalSchema[K, E](tableName: String, trackTimestamps: Boolean = false) {
+final class JournalSchema[K, E](private[postgres] val tableName: String,
+                                serializer: Serializer[E],
+                                trackTimestamps: Boolean)(
+  implicit keyEncoder: KeyEncoder[K],
+  keyDecoder: KeyDecoder[K]
+) {
   def create: ConnectionIO[Unit] =
     for {
       _ <- Update0(
@@ -46,14 +51,17 @@ final case class JournalSchema[K, E](tableName: String, trackTimestamps: Boolean
   def drop: ConnectionIO[Unit] =
     Update0(s"DROP TABLE $tableName", none).run.void
 
-  def journal(tagging: Tagging[K], serializer: Serializer[E])(
-    implicit
-    encodeKey: KeyEncoder[K]
-  ): PostgresEventJournal[K, E] =
+  def journal(tagging: Tagging[K]): PostgresEventJournal[K, E] =
     PostgresEventJournal(this, tagging, serializer)
 
-  def queries[F[_]: Timer: Monad](serializer: Serializer[E], pollInterval: FiniteDuration, xa: Transactor[F])(
-    implicit K: KeyDecoder[K]
-  ): PostgresEventJournalQueries[F, K, E] =
+  def queries[F[_]: Timer: Monad](xa: Transactor[F],
+                                  pollInterval: FiniteDuration = 100.millis): PostgresEventJournalQueries[F, K, E] =
     new PostgresEventJournalQueries(this, serializer, pollInterval, xa)
+}
+
+object JournalSchema {
+  def apply[K, E](tableName: String, serializer: Serializer[E], trackTimestamps: Boolean = false)(
+    implicit keyEncoder: KeyEncoder[K],
+    keyDecoder: KeyDecoder[K]
+  ): JournalSchema[K, E] = new JournalSchema(tableName, serializer, trackTimestamps)
 }

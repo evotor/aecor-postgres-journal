@@ -34,10 +34,10 @@ class PostgresEventJournalTest extends AnyFunSuite with Matchers with BeforeAndA
     ""
   )
 
-  val schema = JournalSchema[String, String](s"test_${UUID.randomUUID().toString.replace('-', '_')}")
+  val schema = JournalSchema[String, String](s"test_${UUID.randomUUID().toString.replace('-', '_')}", stringSerializer)
   val tagging = Tagging.const[String](EventTag("test"))
-  val journal = PostgresEventJournal(schema, tagging, stringSerializer).transactK(xa)
-  val journalQueries = schema.queries(stringSerializer, 1.second, xa)
+  val journal = schema.journal(tagging).transactK(xa)
+  val journalQueries = schema.queries(xa, 1.second)
 
   val consumerId = ConsumerId("C1")
 

@@ -15,8 +15,6 @@ import fs2._
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.{BeforeAndAfterAll, Matchers}
 
-import scala.concurrent.duration._
-
 class PostgresEventJournalEventsByTagGapTest extends AnyFunSuite with Matchers with BeforeAndAfterAll {
   implicit val contextShift =
     IO.contextShift(scala.concurrent.ExecutionContext.global)
@@ -30,13 +28,6 @@ class PostgresEventJournalEventsByTagGapTest extends AnyFunSuite with Matchers w
     override def deserialize(typeHint: TypeHint, bytes: Array[Byte]): Either[Throwable, String] =
       Right(new String(bytes, java.nio.charset.StandardCharsets.UTF_8))
   }
-
-//  private val xa = Transactor.fromDriverManager[IO](
-//    "org.postgresql.Driver",
-//    s"jdbc:postgresql://localhost:5432/postgres",
-//    "user",
-//    ""
-//  )
 
   private val createTransactor = for {
     ce <- ExecutionContexts.fixedThreadPool[IO](32) // our connect EC
@@ -54,10 +45,10 @@ class PostgresEventJournalEventsByTagGapTest extends AnyFunSuite with Matchers w
   private val (xa, shutdownTransactor) =
     createTransactor.allocated.unsafeRunSync()
 
-  val schema = JournalSchema[String, String](s"test_${UUID.randomUUID().toString.replace('-', '_')}")
+  val schema = JournalSchema[String, String](s"test_${UUID.randomUUID().toString.replace('-', '_')}", stringSerializer)
   val tagging = Tagging.partitioned[String](10)(EventTag("test-skip"))
-  val journal = PostgresEventJournal(schema, tagging, stringSerializer).transactK(xa)
-  val queries = PostgresEventJournalQueries[String](schema, stringSerializer, 100.millis, xa)
+  val journal = schema.journal(tagging).transactK(xa)
+  val queries = schema.queries(xa)
   override protected def beforeAll(): Unit =
     schema.create.transact(xa).unsafeRunSync()
 
