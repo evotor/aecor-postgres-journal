@@ -22,7 +22,7 @@ final class PostgresOffsetStore(tableName: String) extends OffsetStore[Connectio
         none
       ).run
       _ <- Update0(
-        s"CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ${tableName}_tag_consumer_id_uidx ON $tableName (tag, consumer_id)",
+        s"CREATE UNIQUE INDEX IF NOT EXISTS ${tableName}_tag_consumer_id_uidx ON $tableName (tag, consumer_id)",
         none
       ).run
     } yield ()
