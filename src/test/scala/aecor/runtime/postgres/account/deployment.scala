@@ -13,7 +13,7 @@ import doobie.util.transactor.Transactor
 object deployment {
   val tagging: Tagging[AccountId] = Tagging.partitioned[AccountId](160)(EventTag("Account"))
 
-  val schema = JournalSchema("account_event")
+  val schema = JournalSchema[AccountId, AccountEvent]("account_event")
 
   val journal =
     PostgresEventJournal(schema, tagging, AccountEvent.serializer)

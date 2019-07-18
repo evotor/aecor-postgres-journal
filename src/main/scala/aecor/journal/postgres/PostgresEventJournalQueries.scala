@@ -5,18 +5,18 @@ import aecor.encoding.KeyDecoder
 import aecor.journal.postgres.PostgresEventJournal.Serializer
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.runtime.KeyValueStore
-import cats.{Functor, Monad}
+import cats.Monad
 import cats.effect.Timer
+import doobie._
+import doobie.implicits._
 import doobie.util.transactor.Transactor
 import fs2.Stream
-import doobie.implicits._
-import doobie._
 
 import scala.concurrent.duration.FiniteDuration
 object PostgresEventJournalQueries {
   final class PostgresEventJournalQueriesBuilder[K] {
     def apply[F[_]: Timer: Monad, E](
-      schema: JournalSchema,
+      schema: JournalSchema[K, E],
       serializer: Serializer[E],
       pollInterval: FiniteDuration,
       xa: Transactor[F]
@@ -28,7 +28,7 @@ object PostgresEventJournalQueries {
 }
 
 final class PostgresEventJournalQueries[F[_]: Monad: Timer, K, E](
-  schema: JournalSchema,
+  schema: JournalSchema[K, E],
   serializer: Serializer[E],
   pollInterval: FiniteDuration,
   xa: Transactor[F]
@@ -82,8 +82,8 @@ final class PostgresEventJournalQueries[F[_]: Monad: Timer, K, E](
       }
       .transact(xa)
 
-  def withOffsetStore[G[_]: Functor](
-    offsetStore: KeyValueStore[G, TagConsumer, Offset]
-  ): PostgresEventJournalQueriesWithOffsetStore[F, G, K, E] =
-    new PostgresEventJournalQueriesWithOffsetStore(this, offsetStore)
+  def withOffsetStore(
+    offsetStore: KeyValueStore[F, TagConsumer, Offset]
+  ): CommittablePostgresEventJournalQueries[F, K, E] =
+    new CommittablePostgresEventJournalQueries(this, offsetStore)
 }

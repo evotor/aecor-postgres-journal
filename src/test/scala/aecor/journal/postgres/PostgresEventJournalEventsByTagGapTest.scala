@@ -6,7 +6,7 @@ import aecor.data._
 import aecor.journal.postgres.PostgresEventJournal.Serializer
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import cats.data.NonEmptyChain
-import cats.effect.IO
+import cats.effect.{Blocker, IO}
 import cats.implicits._
 import doobie.ExecutionContexts
 import doobie.hikari.HikariTransactor
@@ -47,19 +47,19 @@ class PostgresEventJournalEventsByTagGapTest extends AnyFunSuite with Matchers w
       "user",
       "",
       ce,
-      te
+      Blocker.liftExecutionContext(te)
     )
   } yield xa
 
   private val (xa, shutdownTransactor) =
     createTransactor.allocated.unsafeRunSync()
 
-  val schema = JournalSchema(s"test_${UUID.randomUUID().toString.replace('-', '_')}")
+  val schema = JournalSchema[String, String](s"test_${UUID.randomUUID().toString.replace('-', '_')}")
   val tagging = Tagging.partitioned[String](10)(EventTag("test-skip"))
   val journal = PostgresEventJournal(schema, tagging, stringSerializer).transactK(xa)
   val queries = PostgresEventJournalQueries[String](schema, stringSerializer, 100.millis, xa)
   override protected def beforeAll(): Unit =
-    schema.createTable.transact(xa).unsafeRunSync()
+    schema.create.transact(xa).unsafeRunSync()
 
   test("Journal doesn't allow gap in eventsByTag during concurrent writes") {
     val eventsForEachAggregate = 400L
@@ -137,6 +137,6 @@ class PostgresEventJournalEventsByTagGapTest extends AnyFunSuite with Matchers w
   }
 
   override protected def afterAll(): Unit =
-    (schema.dropTable.transact(xa) >> shutdownTransactor).unsafeRunSync()
+    (schema.drop.transact(xa) >> shutdownTransactor).unsafeRunSync()
 
 }

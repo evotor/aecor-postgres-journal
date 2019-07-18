@@ -1,22 +1,19 @@
 package aecor.journal.postgres
 
 import aecor.data._
-import aecor.encoding.{KeyDecoder, KeyEncoder}
+import aecor.encoding.KeyEncoder
 import aecor.journal.postgres.PostgresEventJournal.Serializer
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.runtime.EventJournal
-import cats.Monad
 import cats.data.NonEmptyChain
-import cats.effect.{Bracket, Timer}
+import cats.effect.Bracket
 import cats.implicits.{none, _}
 import doobie._
 import doobie.implicits._
 import doobie.postgres.implicits._
 import fs2.Stream
 
-import scala.concurrent.duration.FiniteDuration
-
-final class PostgresEventJournal[K, E](schema: JournalSchema, tagging: Tagging[K], serializer: Serializer[E])(
+final class PostgresEventJournal[K, E](schema: JournalSchema[K, E], tagging: Tagging[K], serializer: Serializer[E])(
   implicit
   encodeKey: KeyEncoder[K]
 ) extends EventJournal[ConnectionIO, K, E] { self =>
@@ -69,13 +66,6 @@ final class PostgresEventJournal[K, E](schema: JournalSchema, tagging: Tagging[K
       override def read(key: K, offset: Long): Stream[F, EntityEvent[K, E]] =
         self.read(key, offset).transact(xa)
     }
-
-  def queries[F[_]: Monad: Timer](pollingInterval: FiniteDuration, xa: Transactor[F])(
-    implicit K: KeyDecoder[K]
-  ): PostgresEventJournalQueries[F, K, E] =
-    PostgresEventJournalQueries[K](schema, serializer, pollingInterval, xa)
-
-  def createTable: ConnectionIO[Unit] = schema.createTable
 }
 
 object PostgresEventJournal {
@@ -87,7 +77,7 @@ object PostgresEventJournal {
     type TypeHint = String
   }
 
-  def apply[K: KeyEncoder, E](schema: JournalSchema,
+  def apply[K: KeyEncoder, E](schema: JournalSchema[K, E],
                               tagging: Tagging[K],
                               serializer: Serializer[E]): PostgresEventJournal[K, E] =
     new PostgresEventJournal(schema, tagging, serializer)

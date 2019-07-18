@@ -1,16 +1,19 @@
 package aecor.journal.postgres
 
 import aecor.data.Tagging
-import aecor.encoding.KeyEncoder
+import aecor.encoding.{KeyDecoder, KeyEncoder}
 import aecor.journal.postgres.PostgresEventJournal.Serializer
-import aecor.runtime.EventJournal
-import cats.implicits.none
+import cats.Monad
+import cats.effect.Timer
+import cats.implicits.{none, _}
 import doobie._
 import doobie.implicits._
-import cats.implicits._
+import doobie.util.transactor.Transactor
 
-final case class JournalSchema(tableName: String, trackTimestamps: Boolean = false) {
-  def createTable: ConnectionIO[Unit] =
+import scala.concurrent.duration.FiniteDuration
+
+final case class JournalSchema[K, E](tableName: String, trackTimestamps: Boolean = false) {
+  def create: ConnectionIO[Unit] =
     for {
       _ <- Update0(
         s"""
@@ -40,12 +43,17 @@ final case class JournalSchema(tableName: String, trackTimestamps: Boolean = fal
       _ <- Update0(s"CREATE INDEX IF NOT EXISTS ${tableName}_tags ON $tableName (tags)", none).run
     } yield ()
 
-  def dropTable: ConnectionIO[Unit] =
+  def drop: ConnectionIO[Unit] =
     Update0(s"DROP TABLE $tableName", none).run.void
 
-  def journal[K, E](tagging: Tagging[K], serializer: Serializer[E])(
+  def journal(tagging: Tagging[K], serializer: Serializer[E])(
     implicit
     encodeKey: KeyEncoder[K]
-  ): EventJournal[ConnectionIO, K, E] =
+  ): PostgresEventJournal[K, E] =
     PostgresEventJournal(this, tagging, serializer)
+
+  def queries[F[_]: Timer: Monad](serializer: Serializer[E], pollInterval: FiniteDuration, xa: Transactor[F])(
+    implicit K: KeyDecoder[K]
+  ): PostgresEventJournalQueries[F, K, E] =
+    new PostgresEventJournalQueries(this, serializer, pollInterval, xa)
 }

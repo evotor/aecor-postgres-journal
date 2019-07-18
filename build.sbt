@@ -9,7 +9,7 @@ scalaVersion := "2.12.8"
 
 lazy val kindProjectorVersion = "0.9.10"
 lazy val aecorVersion = "0.19.0-M1"
-lazy val doobieVersion = "0.7.0"
+lazy val doobieVersion = "0.8.0-M1"
 lazy val catsEffectVersion = "2.0.0-M4"
 
 lazy val scalaCheckVersion = "1.14.0"
@@ -111,6 +111,6 @@ releaseProcess := Seq[ReleaseStep](
   publishArtifacts,
   setNextVersion,
   commitNextVersion,
-  ReleaseStep(action = "sonatypeReleaseAll" :: _),
+  ReleaseStep(action = Command.process("sonatypeReleaseAll", _)),
   pushChanges
 )

@@ -34,15 +34,15 @@ class PostgresEventJournalTest extends AnyFunSuite with Matchers with BeforeAndA
     ""
   )
 
-  val schema = JournalSchema(s"test_${UUID.randomUUID().toString.replace('-', '_')}")
+  val schema = JournalSchema[String, String](s"test_${UUID.randomUUID().toString.replace('-', '_')}")
   val tagging = Tagging.const[String](EventTag("test"))
   val journal = PostgresEventJournal(schema, tagging, stringSerializer).transactK(xa)
-  val journalQueries = PostgresEventJournalQueries[String](schema, stringSerializer, 1.second, xa)
+  val journalQueries = schema.queries(stringSerializer, 1.second, xa)
 
   val consumerId = ConsumerId("C1")
 
   override protected def beforeAll(): Unit =
-    schema.createTable.transact(xa).unsafeRunSync()
+    schema.create.transact(xa).unsafeRunSync()
 
   test("Journal appends and folds events from zero offset") {
     val x = for {
@@ -164,12 +164,9 @@ class PostgresEventJournalTest extends AnyFunSuite with Matchers with BeforeAndA
         .last
         .map(_.getOrElse(Offset.zero))
       os <- TestKeyValueStore[IO](Map(TagConsumer(tagging.tag, consumerId) -> offset))
-      runOnce = fs2.Stream
-        .force(
-          journalQueries
-            .withOffsetStore(os)
-            .currentEventsByTag(tagging.tag, consumerId)
-        )
+      runOnce = journalQueries
+        .withOffsetStore(os)
+        .currentEventsByTag(tagging.tag, consumerId)
         .evalMap(_.commit)
         .as(1)
         .compile
@@ -183,6 +180,6 @@ class PostgresEventJournalTest extends AnyFunSuite with Matchers with BeforeAndA
   }
 
   override protected def afterAll(): Unit =
-    schema.dropTable.transact(xa).unsafeRunSync()
+    schema.drop.transact(xa).unsafeRunSync()
 
 }

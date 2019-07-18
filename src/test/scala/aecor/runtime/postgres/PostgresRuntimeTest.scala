@@ -24,7 +24,7 @@ class PostgresRuntimeTest extends AnyFunSuite with Matchers with BeforeAndAfterA
       "user",
       "",
       ce,
-      te
+      Blocker.liftExecutionContext(te)
     )
   } yield xa
 
@@ -62,12 +62,12 @@ class PostgresRuntimeTest extends AnyFunSuite with Matchers with BeforeAndAfterA
   }
 
   override protected def beforeAll(): Unit =
-    (schema.createTable >> snapshotStore.createTable)
+    (schema.create >> snapshotStore.createTable)
       .transact(xa)
       .unsafeRunSync()
 
   override protected def afterAll(): Unit =
-    ((schema.dropTable >> snapshotStore.dropTable).transact(xa) >> shutdownTransactor)
+    ((schema.drop >> snapshotStore.dropTable).transact(xa) >> shutdownTransactor)
       .unsafeRunSync()
 
 }

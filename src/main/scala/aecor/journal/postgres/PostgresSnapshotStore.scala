@@ -24,6 +24,9 @@ final class PostgresSnapshotStore[K, S](tableName: String)(implicit S: Serialize
         )
         """,
       none
+    ).run >> Update0(
+      s"CREATE UNIQUE INDEX IF NOT EXISTS ${tableName}_key_uidx ON $tableName (key)",
+      none
     ).run.void
 
   def dropTable: ConnectionIO[Unit] =
