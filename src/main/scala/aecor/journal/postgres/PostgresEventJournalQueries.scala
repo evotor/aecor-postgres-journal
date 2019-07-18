@@ -1,66 +1,76 @@
 package aecor.journal.postgres
 
 import aecor.data._
+import aecor.encoding.KeyDecoder
+import aecor.journal.postgres.PostgresEventJournal.Serializer
+import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.runtime.KeyValueStore
-import cats.Functor
-import cats.implicits._
+import cats.Monad
+import cats.effect.Timer
+import doobie._
+import doobie.implicits._
+import doobie.util.transactor.Transactor
 import fs2.Stream
 
-object PostgresEventJournalQueries {
-  type OffsetStore[F[_]] = KeyValueStore[F, TagConsumer, Offset]
-  final class WithOffsetStore[F[_], G[_]: Functor, K, E](
-      queries: PostgresEventJournalQueries[F, K, E],
-      offsetStore: OffsetStore[G]) {
+import scala.concurrent.duration.FiniteDuration
 
-    private def wrap(tagConsumer: TagConsumer,
-                     underlying: (
-                         EventTag,
-                         Offset) => Stream[F, (Offset, EntityEvent[K, E])])
-      : G[Stream[F, Committable[G, (Offset, EntityEvent[K, E])]]] =
-      offsetStore.getValue(tagConsumer).map { committedOffset =>
-        val effectiveOffset = committedOffset.getOrElse(Offset.zero)
-        underlying(tagConsumer.tag, effectiveOffset)
-          .map {
-            case x @ (offset, _) =>
-              Committable(offsetStore.setValue(tagConsumer, offset), x)
-          }
-      }
+final class PostgresEventJournalQueries[F[_]: Monad: Timer, K, E] private[aecor] (
+  tableName: String,
+  serializer: Serializer[E],
+  pollInterval: FiniteDuration,
+  xa: Transactor[F]
+)(implicit decodeKey: KeyDecoder[K]) {
 
-    def eventsByTag(tag: EventTag, consumerId: ConsumerId)
-      : G[Stream[F, Committable[G, (Offset, EntityEvent[K, E])]]] =
-      wrap(TagConsumer(tag, consumerId), queries.eventsByTag)
+  implicit val keyRead: Read[K] =
+    Read[String].map(s => decodeKey(s).getOrElse(throw new Exception("Failed to decode key")))
 
-    def currentEventsByTag(tag: EventTag, consumerId: ConsumerId)
-      : G[Stream[F, Committable[G, (Offset, EntityEvent[K, E])]]] =
-      wrap(TagConsumer(tag, consumerId), queries.currentEventsByTag)
-  }
-}
-
-trait PostgresEventJournalQueries[F[_], K, E] {
-  protected def sleepBeforePolling: F[Unit]
-
-  final def eventsByTag(
-      tag: EventTag,
-      offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] = {
-    currentEventsByTag(tag, offset).zipWithNext
+  /**
+    * Streams all existing events tagged with tag, starting from offset exclusive,
+    * sleeps for pollInterval and then streams events starting with latest seen offset
+    * @param tag - tag to be used as a filter
+    * @param offset - offset to start from, exclusive
+    * @return - a stream of events which terminates when reaches the last existing event.
+    */
+  def eventsByTag(tag: EventTag, offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] = {
+    val sleep = Stream.sleep_(pollInterval)
+    currentEventsByTag(tag, offset).zipWithNext.noneTerminate
       .flatMap {
-        case (x, Some(_)) => Stream.emit(x)
-        case (x @ (latestOffset, _), None) =>
-          Stream
-            .emit(x)
-            .append(Stream
-              .eval(sleepBeforePolling) >> eventsByTag(tag, latestOffset))
-
+        case Some((x, Some(_))) =>
+          Stream.emit(x)
+        case Some((x @ (latestOffset, _), None)) =>
+          Stream.emit(x) ++
+            sleep ++
+            eventsByTag(tag, latestOffset)
+        case None =>
+          sleep ++
+            eventsByTag(tag, offset)
       }
-      .append(Stream
-        .eval(sleepBeforePolling) >> eventsByTag(tag, offset))
-
   }
-  def currentEventsByTag(tag: EventTag,
-                         offset: Offset): Stream[F, (Offset, EntityEvent[K, E])]
 
-  final def withOffsetStore[G[_]: Functor](
-      offsetStore: KeyValueStore[G, TagConsumer, Offset])
-    : PostgresEventJournalQueries.WithOffsetStore[F, G, K, E] =
-    new PostgresEventJournalQueries.WithOffsetStore(this, offsetStore)
+  /**
+    * Streams all existing events tagged with tag, starting from offset exclusive
+    * @param tag - tag to be used as a filter
+    * @param offset - offset to start from, exclusive
+    * @return - a stream of events which terminates when reaches the last existing event.
+    */
+  def currentEventsByTag(tag: EventTag, offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] =
+    (fr"SELECT id, key, seq_nr, type_hint, bytes FROM"
+      ++ Fragment.const(tableName)
+      ++ fr"WHERE array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id > ${offset.value}) ORDER BY id ASC")
+      .query[(Offset, K, Long, TypeHint, Array[Byte])]
+      .stream
+      .evalMap {
+        case (eventOffset, key, seqNr, typeHint, bytes) =>
+          AsyncConnectionIO
+            .fromEither(serializer.deserialize(typeHint, bytes))
+            .map { a =>
+              (eventOffset, EntityEvent(key, seqNr, a))
+            }
+      }
+      .transact(xa)
+
+  def withOffsetStore(
+    offsetStore: KeyValueStore[F, TagConsumer, Offset]
+  ): CommittablePostgresEventJournalQueries[F, K, E] =
+    new CommittablePostgresEventJournalQueries(this, offsetStore)
 }

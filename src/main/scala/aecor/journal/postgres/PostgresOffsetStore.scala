@@ -1,15 +1,14 @@
 package aecor.journal.postgres
 
 import aecor.data.TagConsumer
-import aecor.journal.postgres.PostgresEventJournalQueries.OffsetStore
+import aecor.journal.postgres.CommittablePostgresEventJournalQueries.OffsetStore
 import cats.implicits._
 import doobie.Update0
 import doobie.free.connection.ConnectionIO
 import doobie.implicits._
 import doobie.util.fragment.Fragment
 
-final class PostgresOffsetStore(tableName: String)
-    extends OffsetStore[ConnectionIO] {
+final class PostgresOffsetStore(tableName: String) extends OffsetStore[ConnectionIO] {
   def createTable: ConnectionIO[Unit] =
     for {
       _ <- Update0(
@@ -27,6 +26,7 @@ final class PostgresOffsetStore(tableName: String)
         none
       ).run
     } yield ()
+
   private[postgres] def dropTable: ConnectionIO[Unit] =
     Update0(s"DROP TABLE $tableName", none).run.void
 
@@ -47,8 +47,7 @@ final class PostgresOffsetStore(tableName: String)
   override def deleteValue(key: TagConsumer): ConnectionIO[Unit] =
     (fr"DELETE FROM"
       ++ Fragment.const(tableName)
-      ++ fr"WHERE tag = ${key.tag.value} AND consumer_id = ${key.consumerId.value}")
-      .update.run.void
+      ++ fr"WHERE tag = ${key.tag.value} AND consumer_id = ${key.consumerId.value}").update.run.void
 }
 
 object PostgresOffsetStore {

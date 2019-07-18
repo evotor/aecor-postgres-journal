@@ -5,15 +5,19 @@ name := "aecor-postgres-journal"
 
 organization := "io.aecor"
 
-scalaVersion := "2.12.7"
+scalaVersion := "2.12.8"
 
-lazy val kindProjectorVersion = "0.9.7"
-lazy val aecorVersion = "0.18.0"
-lazy val doobieVersion = "0.6.0"
-lazy val scalaCheckVersion = "1.13.4"
-lazy val scalaTestVersion = "3.0.1"
-lazy val scalaCheckShapelessVersion = "1.1.4"
-lazy val catsVersion = "1.4.0"
+lazy val kindProjectorVersion = "0.9.10"
+lazy val aecorVersion = "0.19.0-M1"
+lazy val doobieVersion = "0.8.0-M1"
+lazy val catsEffectVersion = "2.0.0-M4"
+
+lazy val scalaCheckVersion = "1.14.0"
+lazy val scalaTestVersion = "3.0.8"
+lazy val catsVersion = "2.0.0-M4"
+lazy val circeVersion = "0.12.0-M4"
+lazy val logbackVersion = "1.2.3"
+lazy val catsTaglessVersion = "0.9"
 
 resolvers ++= Seq(
   Resolver.sonatypeRepo("public")
@@ -23,68 +27,29 @@ libraryDependencies ++= Seq(
   "io.aecor" %% "core" % aecorVersion,
   "org.tpolecat" %% "doobie-core" % doobieVersion,
   "org.tpolecat" %% "doobie-postgres" % doobieVersion,
+  "org.tpolecat" %% "doobie-hikari" % doobieVersion,
+  "org.typelevel" %% "cats-effect" % catsEffectVersion,
   "org.scalacheck" %% "scalacheck" % scalaCheckVersion % Test,
   "org.scalatest" %% "scalatest" % scalaTestVersion % Test,
   "org.tpolecat" %% "doobie-scalatest" % doobieVersion % Test,
-  "com.github.alexarchambault" %% "scalacheck-shapeless_1.13" % scalaCheckShapelessVersion % Test,
-  "org.typelevel" %% "cats-testkit" % catsVersion % Test
+  "org.typelevel" %% "cats-testkit" % catsVersion % Test,
+  "org.typelevel" %% "cats-tagless-macros" % catsTaglessVersion % Test,
+  "io.circe" %% "circe-core" % circeVersion % Test,
+  "io.circe" %% "circe-generic" % circeVersion % Test,
+  "io.circe" %% "circe-parser" % circeVersion % Test,
+  "ch.qos.logback" % "logback-classic" % logbackVersion % Test
 )
+
+addCommandAlias("fmt", "; compile:scalafmt; test:scalafmt; scalafmtSbt")
 
 scalacOptions ++= Seq(
   "-J-Xss16m",
-  "-deprecation",
-  "-encoding",
-  "utf-8",
-  "-explaintypes",
-  "-feature",
-  "-language:existentials",
-  "-language:experimental.macros",
-  "-language:higherKinds",
-  "-language:implicitConversions",
-  "-unchecked",
-  "-Xcheckinit",
-  "-Xfatal-warnings",
-  "-Xfuture",
-  "-Xlint:adapted-args",
-  "-Xlint:by-name-right-associative",
-  "-Xlint:constant",
-  "-Xlint:delayedinit-select",
-  "-Xlint:doc-detached",
-  "-Xlint:inaccessible",
-  "-Xlint:infer-any",
-  "-Xlint:missing-interpolator",
-  "-Xlint:nullary-override",
-  "-Xlint:nullary-unit",
-  "-Xlint:option-implicit",
-  "-Xlint:package-object-classes",
-  "-Xlint:poly-implicit-overload",
-  "-Xlint:private-shadow",
-  "-Xlint:stars-align",
-  "-Xlint:type-parameter-shadow",
-  "-Xlint:unsound-match",
-  "-Yno-adapted-args",
-  "-Ypartial-unification",
-  "-Ywarn-dead-code",
-  "-Ywarn-extra-implicit",
-  "-Ywarn-inaccessible",
-  "-Ywarn-infer-any",
-  "-Ywarn-nullary-override",
-  "-Ywarn-nullary-unit",
-  "-Ywarn-numeric-widen",
-  "-Ywarn-unused:implicits",
-  "-Ywarn-unused:imports",
-  "-Ywarn-unused:locals",
-  "-Ywarn-unused:params",
-  "-Ywarn-unused:patvars",
-  "-Ywarn-unused:privates",
-  "-Ywarn-value-discard",
   "-Xsource:2.13"
 )
 addCompilerPlugin("org.spire-math" %% "kind-projector" % kindProjectorVersion)
 
 parallelExecution in Test := false
-scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports",
-                                            "-Xfatal-warnings")
+scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings")
 
 publishMavenStyle := true
 
@@ -96,9 +61,9 @@ releaseVersionBump := sbtrelease.Version.Bump.Minor
 publishTo := {
   val nexus = "http://nexus.market.local/repository/maven-"
   if (isSnapshot.value)
-    Some("snapshots" at nexus + "snapshots/")
+    Some("snapshots".at(nexus + "snapshots/"))
   else
-    Some("releases" at nexus + "releases/")
+    Some("releases".at(nexus + "releases/"))
 }
 
 releaseCrossBuild := true
@@ -117,9 +82,9 @@ pomIncludeRepository := { _ =>
 publishTo := {
   val nexus = "https://oss.sonatype.org/"
   if (isSnapshot.value)
-    Some("snapshots" at nexus + "content/repositories/snapshots")
+    Some("snapshots".at(nexus + "content/repositories/snapshots"))
   else
-    Some("releases" at nexus + "service/local/staging/deploy/maven2")
+    Some("releases".at(nexus + "service/local/staging/deploy/maven2"))
 }
 autoAPIMappings := true
 scmInfo := Some(
@@ -146,6 +111,6 @@ releaseProcess := Seq[ReleaseStep](
   publishArtifacts,
   setNextVersion,
   commitNextVersion,
-  ReleaseStep(action = "sonatypeReleaseAll" :: _),
+  ReleaseStep(action = Command.process("sonatypeReleaseAll", _)),
   pushChanges
 )
