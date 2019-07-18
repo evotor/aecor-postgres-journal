@@ -13,12 +13,10 @@ import doobie.implicits._
 import doobie.postgres.implicits._
 import fs2.Stream
 
-final class PostgresEventJournal[K, E](schema: JournalSchema[K, E], tagging: Tagging[K], serializer: Serializer[E])(
+final class PostgresEventJournal[K, E](tableName: String, tagging: Tagging[K], serializer: Serializer[E])(
   implicit
   encodeKey: KeyEncoder[K]
 ) extends EventJournal[ConnectionIO, K, E] { self =>
-
-  import schema._
 
   implicit val keyWrite: Put[K] = Put[String].contramap(encodeKey(_))
 
@@ -77,10 +75,10 @@ object PostgresEventJournal {
     type TypeHint = String
   }
 
-  def apply[K: KeyEncoder, E](schema: JournalSchema[K, E],
+  def apply[K: KeyEncoder, E](tableName: String,
                               tagging: Tagging[K],
                               serializer: Serializer[E]): PostgresEventJournal[K, E] =
-    new PostgresEventJournal(schema, tagging, serializer)
+    new PostgresEventJournal(tableName, tagging, serializer)
 
   /**
     * For PgPool users. Modifies Transactor Strategy.

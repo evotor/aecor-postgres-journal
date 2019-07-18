@@ -12,9 +12,7 @@ import doobie.util.transactor.Transactor
 import scala.concurrent.duration._
 import scala.concurrent.duration.FiniteDuration
 
-final class JournalSchema[K, E](private[postgres] val tableName: String,
-                                serializer: Serializer[E],
-                                trackTimestamps: Boolean)(
+final class JournalSchema[K, E](tableName: String, serializer: Serializer[E], trackTimestamps: Boolean)(
   implicit keyEncoder: KeyEncoder[K],
   keyDecoder: KeyDecoder[K]
 ) {
@@ -52,11 +50,11 @@ final class JournalSchema[K, E](private[postgres] val tableName: String,
     Update0(s"DROP TABLE $tableName", none).run.void
 
   def journal(tagging: Tagging[K]): PostgresEventJournal[K, E] =
-    PostgresEventJournal(this, tagging, serializer)
+    PostgresEventJournal(tableName, tagging, serializer)
 
   def queries[F[_]: Timer: Monad](xa: Transactor[F],
                                   pollInterval: FiniteDuration = 100.millis): PostgresEventJournalQueries[F, K, E] =
-    new PostgresEventJournalQueries(this, serializer, pollInterval, xa)
+    new PostgresEventJournalQueries(tableName, serializer, pollInterval, xa)
 }
 
 object JournalSchema {

@@ -13,22 +13,9 @@ import doobie.util.transactor.Transactor
 import fs2.Stream
 
 import scala.concurrent.duration.FiniteDuration
-object PostgresEventJournalQueries {
-  final class PostgresEventJournalQueriesBuilder[K] {
-    def apply[F[_]: Timer: Monad, E](
-      schema: JournalSchema[K, E],
-      serializer: Serializer[E],
-      pollInterval: FiniteDuration,
-      xa: Transactor[F]
-    )(implicit K: KeyDecoder[K]): PostgresEventJournalQueries[F, K, E] =
-      new PostgresEventJournalQueries(schema, serializer, pollInterval, xa)
-  }
 
-  def apply[K]: PostgresEventJournalQueriesBuilder[K] = new PostgresEventJournalQueriesBuilder[K]
-}
-
-final class PostgresEventJournalQueries[F[_]: Monad: Timer, K, E](
-  schema: JournalSchema[K, E],
+final class PostgresEventJournalQueries[F[_]: Monad: Timer, K, E] private[aecor] (
+  tableName: String,
   serializer: Serializer[E],
   pollInterval: FiniteDuration,
   xa: Transactor[F]
@@ -68,7 +55,7 @@ final class PostgresEventJournalQueries[F[_]: Monad: Timer, K, E](
     */
   def currentEventsByTag(tag: EventTag, offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] =
     (fr"SELECT id, key, seq_nr, type_hint, bytes FROM"
-      ++ Fragment.const(schema.tableName)
+      ++ Fragment.const(tableName)
       ++ fr"WHERE array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id > ${offset.value}) ORDER BY id ASC")
       .query[(Offset, K, Long, TypeHint, Array[Byte])]
       .stream
