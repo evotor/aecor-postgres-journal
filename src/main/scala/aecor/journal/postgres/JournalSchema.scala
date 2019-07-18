@@ -28,16 +28,16 @@ final case class JournalSchema(tableName: String, trackTimestamps: Boolean = fal
       ).run
 
       _ <- Update0(
-        s"CREATE UNIQUE INDEX IF NOT EXISTS ${tableName}_id_uindex ON $tableName (id)",
+        s"CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ${tableName}_id_uindex ON $tableName (id)",
         none
       ).run
 
       _ <- Update0(
-        s"CREATE UNIQUE INDEX IF NOT EXISTS ${tableName}_key_seq_nr_uindex ON $tableName (key, seq_nr)",
+        s"CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ${tableName}_key_seq_nr_uindex ON $tableName (key, seq_nr)",
         none
       ).run
 
-      _ <- Update0(s"CREATE INDEX IF NOT EXISTS ${tableName}_tags ON $tableName (tags)", none).run
+      _ <- Update0(s"CREATE INDEX CONCURRENTLY IF NOT EXISTS ${tableName}_tags ON $tableName (tags)", none).run
     } yield ()
 
   def dropTable: ConnectionIO[Unit] =

@@ -35,7 +35,7 @@ final class PostgresEventJournal[K, E](schema: JournalSchema, tagging: Tagging[K
     val tags = tagging.tag(key).map(_.value).toList
 
     val lockTags = tags.traverse_ { tag =>
-      sql"select pg_advisory_xact_lock(${tableName.hashCode}, ${tag.hashCode})"
+      sql"SELECT pg_advisory_xact_lock(${tableName.hashCode}, ${tag.hashCode})"
         .query[Unit]
         .option
     }
