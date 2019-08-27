@@ -9,13 +9,13 @@ scalaVersion := "2.12.8"
 
 lazy val kindProjectorVersion = "0.9.10"
 lazy val aecorVersion = "0.19.0-M1"
-lazy val doobieVersion = "0.8.0-M1"
-lazy val catsEffectVersion = "2.0.0-M4"
+lazy val doobieVersion = "0.8.0-RC1"
+lazy val catsEffectVersion = "2.0.0-RC2"
 
 lazy val scalaCheckVersion = "1.14.0"
 lazy val scalaTestVersion = "3.1.0-SNAP6"
-lazy val catsVersion = "2.0.0-M4"
-lazy val circeVersion = "0.12.0-M4"
+lazy val catsVersion = "2.0.0-RC2"
+lazy val circeVersion = "0.12.0-RC4"
 lazy val logbackVersion = "1.2.3"
 lazy val catsTaglessVersion = "0.9"
 
