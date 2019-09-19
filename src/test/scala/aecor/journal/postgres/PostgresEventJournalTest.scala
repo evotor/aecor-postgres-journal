@@ -11,7 +11,8 @@ import doobie.implicits._
 import doobie.util.transactor.Transactor
 import org.postgresql.util.PSQLException
 import org.scalatest.funsuite.AnyFunSuite
-import org.scalatest.{BeforeAndAfterAll, Matchers}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.BeforeAndAfterAll
 
 import scala.concurrent.duration._
 

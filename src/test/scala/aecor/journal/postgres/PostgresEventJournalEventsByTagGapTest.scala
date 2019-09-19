@@ -13,7 +13,8 @@ import doobie.hikari.HikariTransactor
 import doobie.implicits._
 import fs2._
 import org.scalatest.funsuite.AnyFunSuite
-import org.scalatest.{BeforeAndAfterAll, Matchers}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.BeforeAndAfterAll
 
 class PostgresEventJournalEventsByTagGapTest extends AnyFunSuite with Matchers with BeforeAndAfterAll {
   implicit val contextShift =

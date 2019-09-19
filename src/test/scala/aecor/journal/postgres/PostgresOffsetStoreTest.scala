@@ -7,7 +7,8 @@ import cats.effect.IO
 import doobie.implicits._
 import doobie.util.transactor.Transactor
 import org.scalatest.funsuite.AnyFunSuite
-import org.scalatest.{BeforeAndAfterAll, Matchers}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.BeforeAndAfterAll
 
 class PostgresOffsetStoreTest extends AnyFunSuite with Matchers with BeforeAndAfterAll {
   implicit val contextShift = IO.contextShift(scala.concurrent.ExecutionContext.global)

@@ -8,7 +8,8 @@ import doobie._
 import doobie.hikari._
 import doobie.implicits._
 import org.scalatest.funsuite.AnyFunSuite
-import org.scalatest.{BeforeAndAfterAll, Matchers}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.BeforeAndAfterAll
 
 class PostgresRuntimeTest extends AnyFunSuite with Matchers with BeforeAndAfterAll {
 
