@@ -7,17 +7,17 @@ organization := "io.aecor"
 
 scalaVersion := "2.12.8"
 
-lazy val kindProjectorVersion = "0.9.10"
-lazy val aecorVersion = "0.19.0-M1"
-lazy val doobieVersion = "0.8.0-M1"
-lazy val catsEffectVersion = "2.0.0-M4"
+lazy val kindProjectorVersion = "0.11.0"
+lazy val aecorVersion = "0.19.0"
+lazy val doobieVersion = "0.8.4"
+lazy val catsEffectVersion = "2.0.0"
 
 lazy val scalaCheckVersion = "1.14.0"
 lazy val scalaTestVersion = "3.0.8"
-lazy val catsVersion = "2.0.0-M4"
-lazy val circeVersion = "0.12.0-M4"
+lazy val catsVersion = "2.0.0"
+lazy val circeVersion = "0.12.3"
 lazy val logbackVersion = "1.2.3"
-lazy val catsTaglessVersion = "0.9"
+lazy val catsTaglessVersion = "0.10"
 
 resolvers ++= Seq(
   Resolver.sonatypeRepo("public")
@@ -46,7 +46,7 @@ scalacOptions ++= Seq(
   "-J-Xss16m",
   "-Xsource:2.13"
 )
-addCompilerPlugin("org.spire-math" %% "kind-projector" % kindProjectorVersion)
+addCompilerPlugin("org.typelevel" %% "kind-projector" % kindProjectorVersion cross CrossVersion.full)
 
 parallelExecution in Test := false
 scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings")

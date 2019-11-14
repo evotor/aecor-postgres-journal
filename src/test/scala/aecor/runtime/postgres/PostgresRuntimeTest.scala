@@ -7,10 +7,9 @@ import cats.implicits._
 import doobie._
 import doobie.hikari._
 import doobie.implicits._
-import org.scalatest.funsuite.AnyFunSuite
-import org.scalatest.{BeforeAndAfterAll, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
-class PostgresRuntimeTest extends AnyFunSuite with Matchers with BeforeAndAfterAll {
+class PostgresRuntimeTest extends FunSuite with Matchers with BeforeAndAfterAll {
 
   implicit val contextShift: ContextShift[IO] =
     IO.contextShift(scala.concurrent.ExecutionContext.global)
