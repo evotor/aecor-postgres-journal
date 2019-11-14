@@ -57,7 +57,7 @@ final class PostgresEventJournal[K, E](tableName: String, tagging: Tagging[K], s
           }
       }
 
-  def transactK[F[_]: Bracket[?[_], Throwable]](xa: Transactor[F]): EventJournal[F, K, E] =
+  def transactK[F[_]: Bracket[*[_], Throwable]](xa: Transactor[F]): EventJournal[F, K, E] =
     new EventJournal[F, K, E] {
       override def append(entityKey: K, sequenceNr: Long, events: NonEmptyChain[E]): F[Unit] =
         self.append(entityKey, sequenceNr, events).transact(xa)

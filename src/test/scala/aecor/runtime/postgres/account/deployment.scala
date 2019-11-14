@@ -22,7 +22,7 @@ object deployment {
 
   private val behaviorCIO = EventsourcedAlgebra.behavior[ConnectionIO]
 
-  def deploy[F[_]: Bracket[?[_], Throwable]](xa: Transactor[F]): Accounts[F] = {
+  def deploy[F[_]: Bracket[*[_], Throwable]](xa: Transactor[F]): Accounts[F] = {
 
     Snapshotting.eachVersion(
       40L,

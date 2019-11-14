@@ -12,10 +12,9 @@ import doobie.ExecutionContexts
 import doobie.hikari.HikariTransactor
 import doobie.implicits._
 import fs2._
-import org.scalatest.funsuite.AnyFunSuite
-import org.scalatest.{BeforeAndAfterAll, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
-class PostgresEventJournalEventsByTagGapTest extends AnyFunSuite with Matchers with BeforeAndAfterAll {
+class PostgresEventJournalEventsByTagGapTest extends FunSuite with Matchers with BeforeAndAfterAll {
   implicit val contextShift =
     IO.contextShift(scala.concurrent.ExecutionContext.global)
 
