@@ -10,11 +10,13 @@ import cats.effect.IO
 import doobie.implicits._
 import doobie.util.transactor.Transactor
 import org.postgresql.util.PSQLException
-import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers
 
 import scala.concurrent.duration._
 
-class PostgresEventJournalTest extends FunSuite with Matchers with BeforeAndAfterAll {
+class PostgresEventJournalTest extends AnyFunSuite with Matchers with BeforeAndAfterAll {
   implicit val contextShift =
     IO.contextShift(scala.concurrent.ExecutionContext.global)
   implicit val timer = IO.timer(scala.concurrent.ExecutionContext.global)
