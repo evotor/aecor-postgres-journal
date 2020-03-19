@@ -123,12 +123,12 @@ class PostgresEventJournalTest extends AnyFunSuite with Matchers with BeforeAndA
     } yield out
 
     val expected = Vector(
-      (Offset(1L), EntityEvent("a", 1l, "1")),
-      (Offset(2L), EntityEvent("a", 2l, "2")),
-      (Offset(3L), EntityEvent("a", 3l, "3")),
-      (Offset(5L), EntityEvent("b", 1l, "b1")),
-      (Offset(6L), EntityEvent("a", 4l, "a4")),
-      (Offset(7L), EntityEvent("b", 2l, "b2"))
+      (Offset(1L), EntityEvent("a", 1L, "1")),
+      (Offset(2L), EntityEvent("a", 2L, "2")),
+      (Offset(3L), EntityEvent("a", 3L, "3")),
+      (Offset(5L), EntityEvent("b", 1L, "b1")),
+      (Offset(6L), EntityEvent("a", 4L, "a4")),
+      (Offset(7L), EntityEvent("b", 2L, "b2"))
     )
 
     assert(x.unsafeRunSync() == expected)
@@ -150,7 +150,7 @@ class PostgresEventJournalTest extends AnyFunSuite with Matchers with BeforeAndA
     } yield out
 
     val expected =
-      Vector((Offset(7L), EntityEvent("b", 2l, "b2")), (Offset(8L), EntityEvent("a", 5l, "a5")))
+      Vector((Offset(7L), EntityEvent("b", 2L, "b2")), (Offset(8L), EntityEvent("a", 5L, "a5")))
 
     assert(x.unsafeRunSync() == expected)
   }
