@@ -31,9 +31,9 @@ final class PostgresEventJournalQueries[F[_]: Monad: Timer, K, E] private[aecor]
     * @param offset - offset to start from, exclusive
     * @return - a stream of events which terminates when reaches the last existing event.
     */
-  def eventsByTag(tag: EventTag, offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] = {
+  def eventsByTag(tag: EventTag, offset: Offset, limit: Int = 1024): Stream[F, (Offset, EntityEvent[K, E])] = {
     val sleep = Stream.sleep_(pollInterval)
-    currentEventsByTag(tag, offset).zipWithNext.noneTerminate
+    currentEventsByTag(tag, offset, limit).zipWithNext.noneTerminate
       .flatMap {
         case Some((x, Some(_))) =>
           Stream.emit(x)
@@ -53,10 +53,11 @@ final class PostgresEventJournalQueries[F[_]: Monad: Timer, K, E] private[aecor]
     * @param offset - offset to start from, exclusive
     * @return - a stream of events which terminates when reaches the last existing event.
     */
-  def currentEventsByTag(tag: EventTag, offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] =
+  def currentEventsByTag(tag: EventTag, offset: Offset, limit: Int = 1024): Stream[F, (Offset, EntityEvent[K, E])] =
     (fr"SELECT id, key, seq_nr, type_hint, bytes FROM"
       ++ Fragment.const(tableName)
-      ++ fr"WHERE array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id > ${offset.value}) ORDER BY id ASC")
+      ++ fr"WHERE array_position(tags, ${tag.value} :: text) IS NOT NULL AND (id > ${offset.value}) ORDER BY id ASC"
+      ++ fr"LIMIT $limit")
       .query[(Offset, K, Long, TypeHint, Array[Byte])]
       .stream
       .evalMap {

@@ -14,10 +14,11 @@ final class CommittablePostgresEventJournalQueries[F[_]: Functor, K, E](
 
   private def wrap(
     tagConsumer: TagConsumer,
-    underlying: (EventTag, Offset) => Stream[F, (Offset, EntityEvent[K, E])]
+    limit: Int,
+    underlying: (EventTag, Offset, Int) => Stream[F, (Offset, EntityEvent[K, E])]
   ): Stream[F, Committable[F, (Offset, EntityEvent[K, E])]] =
     Stream.eval(offsetStore.getValue(tagConsumer).map(_.getOrElse(Offset.zero))).flatMap { initialOffset =>
-      underlying(tagConsumer.tag, initialOffset)
+      underlying(tagConsumer.tag, initialOffset, limit)
         .map {
           case x @ (offset, _) =>
             Committable(offsetStore.setValue(tagConsumer, offset), x)
@@ -26,15 +27,17 @@ final class CommittablePostgresEventJournalQueries[F[_]: Functor, K, E](
 
   def eventsByTag(
     tag: EventTag,
-    consumerId: ConsumerId
+    consumerId: ConsumerId,
+    limit: Int = 1024
   ): Stream[F, Committable[F, (Offset, EntityEvent[K, E])]] =
-    wrap(TagConsumer(tag, consumerId), queries.eventsByTag)
+    wrap(TagConsumer(tag, consumerId), limit, queries.eventsByTag)
 
   def currentEventsByTag(
     tag: EventTag,
-    consumerId: ConsumerId
+    consumerId: ConsumerId,
+    limit: Int = 1024
   ): Stream[F, Committable[F, (Offset, EntityEvent[K, E])]] =
-    wrap(TagConsumer(tag, consumerId), queries.currentEventsByTag)
+    wrap(TagConsumer(tag, consumerId), limit, queries.currentEventsByTag)
 }
 
 object CommittablePostgresEventJournalQueries {
