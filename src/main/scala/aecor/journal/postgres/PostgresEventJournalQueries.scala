@@ -29,6 +29,7 @@ final class PostgresEventJournalQueries[F[_]: Monad: Timer, K, E] private[aecor]
     * sleeps for pollInterval and then streams events starting with latest seen offset
     * @param tag - tag to be used as a filter
     * @param offset - offset to start from, exclusive
+    * @param limit - limit of events that can be retrieved from database within one poll request
     * @return - a stream of events which terminates when reaches the last existing event.
     */
   def eventsByTag(tag: EventTag, offset: Offset, limit: Int = 1024): Stream[F, (Offset, EntityEvent[K, E])] = {
@@ -51,6 +52,7 @@ final class PostgresEventJournalQueries[F[_]: Monad: Timer, K, E] private[aecor]
     * Streams all existing events tagged with tag, starting from offset exclusive
     * @param tag - tag to be used as a filter
     * @param offset - offset to start from, exclusive
+    * @param limit - limit of events that can be retrieved from database within one poll request
     * @return - a stream of events which terminates when reaches the last existing event.
     */
   def currentEventsByTag(tag: EventTag, offset: Offset, limit: Int = 1024): Stream[F, (Offset, EntityEvent[K, E])] =
