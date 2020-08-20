@@ -21,7 +21,7 @@ class PostgresRuntimeTest extends AnyFunSuite with Matchers with BeforeAndAfterA
     te <- ExecutionContexts.cachedThreadPool[IO]
     xa <- HikariTransactor.newHikariTransactor[IO](
       "org.postgresql.Driver",
-      "jdbc:postgresql://localhost/postgres",
+      "jdbc:postgresql://localhost:5432/aecor",
       "user",
       "",
       ce,

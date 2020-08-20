@@ -30,7 +30,7 @@ class PostgresEventJournalTest extends AnyFunSuite with Matchers with BeforeAndA
 
   private val xa = Transactor.fromDriverManager[IO](
     "org.postgresql.Driver",
-    s"jdbc:postgresql://localhost:5432/postgres",
+    "jdbc:postgresql://localhost:5432/aecor",
     "user",
     ""
   )

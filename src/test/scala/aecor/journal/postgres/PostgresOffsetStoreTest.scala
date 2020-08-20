@@ -15,7 +15,7 @@ class PostgresOffsetStoreTest extends AnyFunSuite with Matchers with BeforeAndAf
   implicit val timer = IO.timer(scala.concurrent.ExecutionContext.global)
   private val xa = Transactor.fromDriverManager[IO](
     "org.postgresql.Driver",
-    s"jdbc:postgresql://localhost:5432/postgres",
+    "jdbc:postgresql://localhost:5432/aecor",
     "user",
     ""
   )
