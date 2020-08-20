@@ -9,12 +9,12 @@ crossScalaVersions := Seq("2.13.1", "2.12.10")
 
 lazy val kindProjectorVersion = "0.11.0"
 lazy val aecorVersion = "0.19.0"
-lazy val doobieVersion = "0.8.8"
-lazy val catsEffectVersion = "2.1.0"
+lazy val doobieVersion = "0.9.0"
+lazy val catsEffectVersion = "2.1.4"
 
 lazy val scalaCheckVersion = "1.14.0"
-lazy val scalaTestVersion = "3.1.0"
-lazy val catsVersion = "2.1.0"
+lazy val scalaTestVersion = "3.2.1"
+lazy val catsVersion = "2.1.1"
 lazy val circeVersion = "0.13.0"
 lazy val logbackVersion = "1.2.3"
 lazy val catsTaglessVersion = "0.11"
