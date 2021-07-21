@@ -5,9 +5,9 @@ name := "aecor-postgres-journal"
 
 organization := "io.aecor"
 
-crossScalaVersions := Seq("2.13.1", "2.12.10")
+crossScalaVersions := Seq("2.13.6", "2.12.10")
 
-lazy val kindProjectorVersion = "0.11.0"
+lazy val kindProjectorVersion = "0.13.0"
 lazy val aecorVersion = "0.19.0"
 lazy val doobieVersion = "0.8.8"
 lazy val catsEffectVersion = "2.1.0"
@@ -40,7 +40,7 @@ libraryDependencies ++= Seq(
   "ch.qos.logback" % "logback-classic" % logbackVersion % Test
 )
 
-addCommandAlias("fmt", "; compile:scalafmt; test:scalafmt; scalafmtSbt")
+addCommandAlias("fmt", "; Compile / scalafmt; Test / scalafmt; scalafmtSbt")
 
 scalacOptions ++= Seq(
   "-J-Xss16m",
@@ -49,7 +49,7 @@ scalacOptions ++= Seq(
 addCompilerPlugin("org.typelevel" %% "kind-projector" % kindProjectorVersion cross CrossVersion.full)
 
 parallelExecution in Test := false
-scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings")
+scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings", "-Xlint:nullary-override")
 
 publishMavenStyle := true
 
