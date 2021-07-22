@@ -63,9 +63,9 @@ releaseVersionBump := sbtrelease.Version.Bump.Minor
 publishTo := {
   val nexus = "http://nexus.market.local/repository/maven-"
   if (isSnapshot.value)
-    Some("snapshots".at(nexus + "snapshots/"))
+    Some("snapshots".at(nexus + "snapshots/").withAllowInsecureProtocol(true))
   else
-    Some("releases".at(nexus + "releases/"))
+    Some("releases".at(nexus + "releases/").withAllowInsecureProtocol(true))
 }
 
 releaseCrossBuild := true
