@@ -67,6 +67,7 @@ publishTo := {
   else
     Some("releases".at(nexus + "releases/").withAllowInsecureProtocol(true))
 }
+credentials += Credentials(Path.userHome / ".sbt" / ".credentials")
 
 releaseCrossBuild := true
 releaseVersionBump := Bump.Minor
