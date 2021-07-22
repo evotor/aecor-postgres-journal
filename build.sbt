@@ -11,12 +11,13 @@ lazy val kindProjectorVersion = "0.13.0"
 lazy val aecorVersion = "0.19.0"
 lazy val doobieVersion = "0.13.4"
 lazy val catsEffectVersion = "2.5.1"
-lazy val scalaCheckVersion = "1.14.0"
-lazy val scalaTestVersion = "3.1.0"
+lazy val scalaCheckVersion = "1.15.1"
+lazy val scalaTestVersion = "3.2.6"
 lazy val catsVersion = "2.6.1"
 lazy val circeVersion = "0.13.0"
 lazy val logbackVersion = "1.2.3"
 lazy val catsTaglessVersion = "0.14.0"
+lazy val testContainersVersion = "0.39.5"
 
 resolvers ++= Seq(
   Resolver.sonatypeRepo("public")
@@ -36,7 +37,9 @@ libraryDependencies ++= Seq(
   "io.circe" %% "circe-core" % circeVersion % Test,
   "io.circe" %% "circe-generic" % circeVersion % Test,
   "io.circe" %% "circe-parser" % circeVersion % Test,
-  "ch.qos.logback" % "logback-classic" % logbackVersion % Test
+  "ch.qos.logback" % "logback-classic" % logbackVersion % Test,
+  "com.dimafeng" %% "testcontainers-scala" % testContainersVersion % Test,
+  "com.dimafeng" %% "testcontainers-scala-postgresql" % testContainersVersion
 )
 
 addCommandAlias("fmt", "; Compile / scalafmt; Test / scalafmt; scalafmtSbt")

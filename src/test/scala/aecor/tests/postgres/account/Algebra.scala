@@ -1,4 +1,4 @@
-package aecor.runtime.postgres.account
+package aecor.tests.postgres.account
 import aecor.encoding.{KeyDecoder, KeyEncoder}
 import cats.kernel.Hash
 import cats.tagless.{Derive, FunctorK}

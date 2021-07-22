@@ -1,4 +1,4 @@
-package aecor.runtime.postgres
+package aecor.tests.postgres
 
 import aecor.data.EventsourcedBehavior
 import aecor.runtime.Eventsourced.Entities

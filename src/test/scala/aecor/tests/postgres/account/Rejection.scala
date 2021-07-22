@@ -1,4 +1,4 @@
-package aecor.runtime.postgres.account
+package aecor.tests.postgres.account
 
 sealed abstract class Rejection extends Product with Serializable
 
