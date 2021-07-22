@@ -1,4 +1,4 @@
-package aecor.runtime.postgres.account
+package aecor.tests.postgres.account
 
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
@@ -8,9 +8,9 @@ import aecor.data.Folded.syntax._
 import aecor.data._
 import aecor.journal.postgres.PostgresEventJournal.Serializer
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
-import aecor.runtime.postgres.account.AccountEvent.{AccountCredited, AccountDebited, AccountOpened}
-import aecor.runtime.postgres.account.EventsourcedAlgebra.AccountState
-import aecor.runtime.postgres.account.Rejection.{AccountDoesNotExist, InsufficientFunds}
+import aecor.tests.postgres.account.AccountEvent.{AccountCredited, AccountDebited, AccountOpened}
+import aecor.tests.postgres.account.EventsourcedAlgebra.AccountState
+import aecor.tests.postgres.account.Rejection.{AccountDoesNotExist, InsufficientFunds}
 import cats.Monad
 import cats.implicits._
 import io.circe.jawn

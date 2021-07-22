@@ -1,4 +1,4 @@
-package aecor.runtime.postgres.account
+package aecor.tests.postgres.account
 
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets

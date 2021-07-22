@@ -1,4 +1,4 @@
-package aecor.journal.postgres
+package aecor.tests.journal.postgres
 
 import aecor.runtime.KeyValueStore
 import cats.effect.Sync
