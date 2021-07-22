@@ -88,19 +88,19 @@ class PostgresEventJournalEventsByTagGapTest extends AsyncFlatSpec with Postgres
               .eventsByTag(tag, Offset(0L))
           }
           .parJoinUnbounded
-          .scan((false, Map.empty[String, Long])) {
-            case (acc @ (hasHole, seqNrs), (_, EntityEvent(key, seqNr, _))) =>
-              if (hasHole)
-                acc
-              else if (seqNrs.getOrElse(key, 0L) + 1 != seqNr) {
-                (true, seqNrs)
-              } else
-                (false, seqNrs.updated(key, seqNr))
+          .scan((false, Map.empty[String, Long])) { case (acc @ (hasHole, seqNrs), (_, EntityEvent(key, seqNr, _))) =>
+            if (hasHole)
+              acc
+            else if (seqNrs.getOrElse(key, 0L) + 1 != seqNr) {
+              (true, seqNrs)
+            } else
+              (false, seqNrs.updated(key, seqNr))
           }
-          .takeWhile({
-            case (hasHole, counters) =>
-              !hasHole && counters.values.sum != allEventsCount
-          }, true)
+          .takeWhile({ case (hasHole, counters) =>
+                       !hasHole && counters.values.sum != allEventsCount
+                     },
+                     true
+          )
           .map(_._1)
           .compile
           .last
