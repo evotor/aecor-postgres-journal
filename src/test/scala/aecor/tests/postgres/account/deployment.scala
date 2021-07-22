@@ -2,8 +2,8 @@ package aecor.tests.postgres.account
 
 import aecor.data.{EventTag, Tagging}
 import aecor.journal.postgres._
+import aecor.runtime.postgres.PostgresRuntime
 import aecor.runtime.{Eventsourced, Snapshotting}
-import aecor.tests.postgres.PostgresRuntime
 import aecor.tests.postgres.account.EventsourcedAlgebra.AccountState
 import cats.effect.Bracket
 import doobie.free.connection.ConnectionIO
