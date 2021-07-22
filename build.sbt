@@ -109,6 +109,5 @@ releaseProcess := Seq[ReleaseStep](
   publishArtifacts,
   setNextVersion,
   commitNextVersion,
-  ReleaseStep(action = Command.process("sonatypeReleaseAll", _)),
   pushChanges
 )
