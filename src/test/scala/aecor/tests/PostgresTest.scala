@@ -60,13 +60,12 @@ trait PostgresTest[F[_]] extends ForAllTestContainer { self: AsyncTestSuite =>
       connectEC <- ExecutionContexts.fixedThreadPool[F](maximumPoolSize)
       transactEC <- ExecutionContexts.cachedThreadPool[F]
       blocker = Blocker.liftExecutionContext(transactEC)
-      transactor <- {
+      transactor <-
         HikariTransactor.fromHikariConfig[F](
           hikariConfig = hikariConfig,
           connectEC = connectEC,
           blocker = blocker
         )
-      }
     } yield transactor
 
   private def createTransactorWithNewSchema(

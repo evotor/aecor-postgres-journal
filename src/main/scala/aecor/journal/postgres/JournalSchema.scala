@@ -12,8 +12,8 @@ import doobie.util.transactor.Transactor
 import scala.concurrent.duration._
 import scala.concurrent.duration.FiniteDuration
 
-final class JournalSchema[K, E](tableName: String, serializer: Serializer[E], trackTimestamps: Boolean)(
-  implicit keyEncoder: KeyEncoder[K],
+final class JournalSchema[K, E](tableName: String, serializer: Serializer[E], trackTimestamps: Boolean)(implicit
+  keyEncoder: KeyEncoder[K],
   keyDecoder: KeyDecoder[K]
 ) {
   def create: ConnectionIO[Unit] =
@@ -53,13 +53,14 @@ final class JournalSchema[K, E](tableName: String, serializer: Serializer[E], tr
     PostgresEventJournal(tableName, tagging, serializer)
 
   def queries[F[_]: Timer: Monad](xa: Transactor[F],
-                                  pollInterval: FiniteDuration = 100.millis): PostgresEventJournalQueries[F, K, E] =
+                                  pollInterval: FiniteDuration = 100.millis
+  ): PostgresEventJournalQueries[F, K, E] =
     new PostgresEventJournalQueries(tableName, serializer, pollInterval, xa)
 }
 
 object JournalSchema {
-  def apply[K, E](tableName: String, serializer: Serializer[E], trackTimestamps: Boolean = false)(
-    implicit keyEncoder: KeyEncoder[K],
+  def apply[K, E](tableName: String, serializer: Serializer[E], trackTimestamps: Boolean = false)(implicit
+    keyEncoder: KeyEncoder[K],
     keyDecoder: KeyDecoder[K]
   ): JournalSchema[K, E] = new JournalSchema(tableName, serializer, trackTimestamps)
 }

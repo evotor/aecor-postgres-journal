@@ -17,8 +17,8 @@ import io.circe.jawn
 import io.circe.syntax._
 import io.circe.generic.auto._
 
-final class EventsourcedAlgebra[F[_]](
-  implicit F: MonadActionReject[F, Option[AccountState], AccountEvent, Rejection]
+final class EventsourcedAlgebra[F[_]](implicit
+  F: MonadActionReject[F, Option[AccountState], AccountEvent, Rejection]
 ) extends Algebra[F] {
 
   import F._

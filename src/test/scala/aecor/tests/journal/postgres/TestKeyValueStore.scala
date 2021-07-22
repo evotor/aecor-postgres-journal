@@ -14,8 +14,8 @@ object TestKeyValueStore {
     TestKeyValueStore[F](Map.empty[K, V])
 }
 
-final class TestKeyValueStore[F[_], K, V](store: scala.collection.concurrent.TrieMap[K, V])(
-  implicit F: Sync[F]
+final class TestKeyValueStore[F[_], K, V](store: scala.collection.concurrent.TrieMap[K, V])(implicit
+  F: Sync[F]
 ) extends KeyValueStore[F, K, V] {
   override def setValue(key: K, value: V): F[Unit] =
     F.delay(store.update(key, value))

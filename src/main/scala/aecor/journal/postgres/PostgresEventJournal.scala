@@ -13,8 +13,7 @@ import doobie.implicits._
 import doobie.postgres.implicits._
 import fs2.Stream
 
-final class PostgresEventJournal[K, E](tableName: String, tagging: Tagging[K], serializer: Serializer[E])(
-  implicit
+final class PostgresEventJournal[K, E](tableName: String, tagging: Tagging[K], serializer: Serializer[E])(implicit
   encodeKey: KeyEncoder[K]
 ) extends EventJournal[ConnectionIO, K, E] { self =>
 
@@ -50,11 +49,10 @@ final class PostgresEventJournal[K, E](tableName: String, tagging: Tagging[K], s
       ++ fr"WHERE key = $key and seq_nr >= $offset ORDER BY seq_nr ASC")
       .query[(TypeHint, Array[Byte], Long)]
       .stream
-      .flatMap {
-        case (typeHint, bytes, seqNr) =>
-          Stream.fromEither[ConnectionIO](serializer.deserialize(typeHint, bytes)).map { e =>
-            EntityEvent(key, seqNr, e)
-          }
+      .flatMap { case (typeHint, bytes, seqNr) =>
+        Stream.fromEither[ConnectionIO](serializer.deserialize(typeHint, bytes)).map { e =>
+          EntityEvent(key, seqNr, e)
+        }
       }
 
   def transactK[F[_]: Bracket[*[_], Throwable]](xa: Transactor[F]): EventJournal[F, K, E] =
@@ -77,15 +75,16 @@ object PostgresEventJournal {
 
   def apply[K: KeyEncoder, E](tableName: String,
                               tagging: Tagging[K],
-                              serializer: Serializer[E]): PostgresEventJournal[K, E] =
+                              serializer: Serializer[E]
+  ): PostgresEventJournal[K, E] =
     new PostgresEventJournal(tableName, tagging, serializer)
 
   /**
-    * For PgPool users. Modifies Transactor Strategy.
-    * Adds /*NO LOAD BALANCE*/ directive at the beginning of each transaction
-    * which routes queries to master server
-    * Use this function for transactor that is used for a write side
-    */
+   * For PgPool users. Modifies Transactor Strategy.
+   * Adds /*NO LOAD BALANCE*/ directive at the beginning of each transaction
+   * which routes queries to master server
+   * Use this function for transactor that is used for a write side
+   */
   def addNoLoadBalanceDirective[F[_]](xa: Transactor[F]): Transactor[F] = {
     val noLoadBalance = Update0("/*NO LOAD BALANCE*/", none).run
     val oldStrategy = xa.strategy

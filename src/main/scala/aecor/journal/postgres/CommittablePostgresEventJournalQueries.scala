@@ -18,9 +18,8 @@ final class CommittablePostgresEventJournalQueries[F[_]: Functor, K, E](
   ): Stream[F, Committable[F, (Offset, EntityEvent[K, E])]] =
     Stream.eval(offsetStore.getValue(tagConsumer).map(_.getOrElse(Offset.zero))).flatMap { initialOffset =>
       underlying(tagConsumer.tag, initialOffset)
-        .map {
-          case x @ (offset, _) =>
-            Committable(offsetStore.setValue(tagConsumer, offset), x)
+        .map { case x @ (offset, _) =>
+          Committable(offsetStore.setValue(tagConsumer, offset), x)
         }
     }
 

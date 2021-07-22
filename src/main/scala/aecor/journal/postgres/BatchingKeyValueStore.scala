@@ -22,21 +22,20 @@ final class BatchingKeyValueStore[F[_], K, A] private (store: KeyValueStore[F, K
 object BatchingKeyValueStore {
   def resource[F[_]: Concurrent: Timer, K, A](store: KeyValueStore[F, K, A],
                                               batchSize: Int,
-                                              timeWindow: FiniteDuration): Resource[F, KeyValueStore[F, K, A]] =
+                                              timeWindow: FiniteDuration
+  ): Resource[F, KeyValueStore[F, K, A]] =
     fs2.Stream
       .eval(Queue.unbounded[F, (K, A)])
       .flatMap { queue =>
         val batchProcess =
           queue.dequeue.groupWithin(batchSize, timeWindow).evalMap { chunk =>
             chunk
-              .foldLeft(Map.empty[K, A]) {
-                case (map, (k, a)) =>
-                  map.updated(k, a)
+              .foldLeft(Map.empty[K, A]) { case (map, (k, a)) =>
+                map.updated(k, a)
               }
               .toList
-              .traverse_ {
-                case (k, a) =>
-                  store.setValue(k, a)
+              .traverse_ { case (k, a) =>
+                store.setValue(k, a)
               }
           }
         fs2.Stream

@@ -17,26 +17,26 @@ class PostgresRuntimeTest extends AsyncFlatSpec with PostgresTest[IO] {
       .use { xa =>
         schema.create.transact(xa) *>
           snapshotStore.createTable.transact(xa) *> {
-          val accounts = deploy(xa)
-          val rounds = 10000
-          val parallelism = 30
-          val size = 2
-          val amount = 1
-          val transactions = (1 to size).toVector.map(x => TransactionId(s"$x"))
+            val accounts = deploy(xa)
+            val rounds = 10000
+            val parallelism = 30
+            val size = 2
+            val amount = 1
+            val transactions = (1 to size).toVector.map(x => TransactionId(s"$x"))
 
-          fs2.Stream
-            .range(0, rounds)
-            .map(x => accounts(AccountId(s"$x")))
-            .covary[IO]
-            .mapAsyncUnordered(parallelism) { account =>
-              val open = account.open(checkBalance = false)
-              val credit = transactions.parTraverse_(account.credit(_, amount))
-              open >> credit
-            }
-            .compile
-            .drain
-            .as(rounds * (size + 1))
-        }
+            fs2.Stream
+              .range(0, rounds)
+              .map(x => accounts(AccountId(s"$x")))
+              .covary[IO]
+              .mapAsyncUnordered(parallelism) { account =>
+                val open = account.open(checkBalance = false)
+                val credit = transactions.parTraverse_(account.credit(_, amount))
+                open >> credit
+              }
+              .compile
+              .drain
+              .as(rounds * (size + 1))
+          }
       }
       .map { total =>
         val start = System.currentTimeMillis()

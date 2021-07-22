@@ -48,7 +48,7 @@ scalacOptions ++= Seq(
   "-J-Xss16m",
   "-Xsource:2.13"
 )
-addCompilerPlugin("org.typelevel" %% "kind-projector" % kindProjectorVersion cross CrossVersion.full)
+addCompilerPlugin(("org.typelevel" %% "kind-projector" % kindProjectorVersion).cross(CrossVersion.full))
 
 parallelExecution in Test := false
 scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings", "-Xlint:nullary-override")
@@ -91,7 +91,8 @@ publishTo := {
 autoAPIMappings := true
 scmInfo := Some(
   ScmInfo(url("https://github.com/evotor/aecor-postgres-journal"),
-          "scm:git:git@github.com:evotor/aecor-postgres-journal.git")
+          "scm:git:git@github.com:evotor/aecor-postgres-journal.git"
+  )
 )
 pomExtra :=
   <developers>
