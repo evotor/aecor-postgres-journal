@@ -5,7 +5,7 @@ name := "aecor-postgres-journal"
 
 organization := "io.aecor"
 
-crossScalaVersions := Seq("2.13.6", "2.12.10")
+crossScalaVersions := Seq("2.13.6", "2.12.14")
 
 lazy val kindProjectorVersion = "0.13.0"
 lazy val aecorVersion = "0.19.0"
