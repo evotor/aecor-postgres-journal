@@ -5,8 +5,7 @@ import aecor.encoding.KeyDecoder
 import aecor.journal.postgres.PostgresEventJournal.Serializer
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.runtime.KeyValueStore
-import cats.Monad
-import cats.effect.Timer
+import cats.effect.Temporal
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
@@ -14,7 +13,7 @@ import fs2.Stream
 
 import scala.concurrent.duration.FiniteDuration
 
-final class PostgresEventJournalQueries[F[_]: Monad: Timer, K, E] private[aecor] (
+final class PostgresEventJournalQueries[F[_]: Temporal, K, E] private[aecor] (
   tableName: String,
   serializer: Serializer[E],
   pollInterval: FiniteDuration,
@@ -60,7 +59,7 @@ final class PostgresEventJournalQueries[F[_]: Monad: Timer, K, E] private[aecor]
       .query[(Offset, K, Long, TypeHint, Array[Byte])]
       .stream
       .evalMap { case (eventOffset, key, seqNr, typeHint, bytes) =>
-        AsyncConnectionIO
+        WeakAsyncConnectionIO
           .fromEither(serializer.deserialize(typeHint, bytes))
           .map { a =>
             (eventOffset, EntityEvent(key, seqNr, a))

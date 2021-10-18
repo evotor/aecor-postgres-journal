@@ -6,8 +6,8 @@ import aecor.journal.postgres.PostgresEventJournal.Serializer
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.runtime.EventJournal
 import cats.data.NonEmptyChain
-import cats.effect.Bracket
-import cats.implicits.{none, _}
+import cats.effect.MonadCancel
+import cats.syntax.all._
 import doobie._
 import doobie.implicits._
 import doobie.postgres.implicits._
@@ -50,12 +50,14 @@ final class PostgresEventJournal[K, E](tableName: String, tagging: Tagging[K], s
       .query[(TypeHint, Array[Byte], Long)]
       .stream
       .flatMap { case (typeHint, bytes, seqNr) =>
-        Stream.fromEither[ConnectionIO](serializer.deserialize(typeHint, bytes)).map { e =>
-          EntityEvent(key, seqNr, e)
-        }
+        Stream
+          .fromEither[ConnectionIO](serializer.deserialize(typeHint, bytes))
+          .map { e =>
+            EntityEvent(key, seqNr, e)
+          }
       }
 
-  def transactK[F[_]: Bracket[*[_], Throwable]](xa: Transactor[F]): EventJournal[F, K, E] =
+  def transactK[F[_]: MonadCancel[*[_], Throwable]](xa: Transactor[F]): EventJournal[F, K, E] =
     new EventJournal[F, K, E] {
       override def append(entityKey: K, sequenceNr: Long, events: NonEmptyChain[E]): F[Unit] =
         self.append(entityKey, sequenceNr, events).transact(xa)
@@ -88,7 +90,8 @@ object PostgresEventJournal {
   def addNoLoadBalanceDirective[F[_]](xa: Transactor[F]): Transactor[F] = {
     val noLoadBalance = Update0("/*NO LOAD BALANCE*/", none).run
     val oldStrategy = xa.strategy
-    val newStrategy = oldStrategy.copy(before = noLoadBalance *> oldStrategy.before)
+    val newStrategy =
+      oldStrategy.copy(before = noLoadBalance *> oldStrategy.before)
     xa.copy(strategy0 = newStrategy)
   }
 
