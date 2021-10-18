@@ -5,13 +5,14 @@ import aecor.journal.postgres._
 import aecor.runtime.postgres.PostgresRuntime
 import aecor.runtime.{Eventsourced, Snapshotting}
 import aecor.tests.postgres.account.EventsourcedAlgebra.AccountState
-import cats.effect.Bracket
+import cats.effect.MonadCancel
 import doobie.free.connection.ConnectionIO
 import doobie.implicits._
 import doobie.util.transactor.Transactor
 
 object deployment {
-  val tagging: Tagging[AccountId] = Tagging.partitioned[AccountId](160)(EventTag("Account"))
+  val tagging: Tagging[AccountId] =
+    Tagging.partitioned[AccountId](160)(EventTag("Account"))
 
   val schema = JournalSchema[AccountId, AccountEvent]("account_event", AccountEvent.serializer)
 
@@ -22,7 +23,7 @@ object deployment {
 
   private val behaviorCIO = EventsourcedAlgebra.behavior[ConnectionIO]
 
-  def deploy[F[_]: Bracket[*[_], Throwable]](xa: Transactor[F]): Accounts[F] = {
+  def deploy[F[_]: MonadCancel[*[_], Throwable]](xa: Transactor[F]): Accounts[F] = {
 
     Snapshotting.eachVersion(
       40L,
