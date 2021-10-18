@@ -5,9 +5,9 @@ name := "aecor-postgres-journal"
 
 organization := "io.aecor"
 
-crossScalaVersions := Seq("2.13.6", "2.12.14")
+crossScalaVersions := Seq("2.13.6", "2.12.15")
 
-lazy val kindProjectorVersion = "0.13.0"
+lazy val kindProjectorVersion = "0.13.2"
 lazy val aecorVersion = "0.19.0"
 lazy val doobieVersion = "0.13.4"
 lazy val catsEffectVersion = "2.5.1"
@@ -51,7 +51,7 @@ scalacOptions ++= Seq(
 addCompilerPlugin(("org.typelevel" %% "kind-projector" % kindProjectorVersion).cross(CrossVersion.full))
 
 parallelExecution in Test := false
-scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings", "-Xlint:nullary-override")
+scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings")
 
 publishMavenStyle := true
 
