@@ -50,14 +50,15 @@ scalacOptions ++= Seq(
 )
 addCompilerPlugin(("org.typelevel" %% "kind-projector" % kindProjectorVersion).cross(CrossVersion.full))
 
-parallelExecution in Test := false
+Test / parallelExecution := false
+
 scalacOptions --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings", "-Xlint:nullary-override")
 
 publishMavenStyle := true
 
 releaseCrossBuild := true
 
-releaseCommitMessage := s"Set version to ${if (releaseUseGlobalVersion.value) (version in ThisBuild).value
+releaseCommitMessage := s"Set version to ${if (releaseUseGlobalVersion.value) (ThisBuild / version).value
 else version.value}"
 releaseVersionBump := sbtrelease.Version.Bump.Minor
 publishTo := {
@@ -71,14 +72,14 @@ credentials += Credentials(Path.userHome / ".sbt" / ".credentials")
 
 releaseCrossBuild := true
 releaseVersionBump := Bump.Minor
-releaseCommitMessage := s"Set version to ${if (releaseUseGlobalVersion.value) (version in ThisBuild).value
+releaseCommitMessage := s"Set version to ${if (releaseUseGlobalVersion.value) (ThisBuild / version).value
 else version.value}"
 releaseIgnoreUntrackedFiles := true
 releasePublishArtifactsAction := PgpKeys.publishSigned.value
 homepage := Some(url("https://github.com/evotor/aecor-postgres-journal"))
 licenses := Seq("MIT" -> url("http://opensource.org/licenses/MIT"))
 publishMavenStyle := true
-publishArtifact in Test := false
+Test / publishArtifact := false
 pomIncludeRepository := { _ =>
   false
 }
