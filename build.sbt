@@ -5,7 +5,24 @@ name := "aecor-postgres-journal"
 
 organization := "io.aecor"
 
-crossScalaVersions := Seq("2.13.6", "2.12.15")
+val Scala212 = "2.12.15"
+val Scala213 = "2.13.6"
+
+ThisBuild / scalaVersion := Scala213
+ThisBuild / crossScalaVersions := Seq(Scala212, Scala213)
+
+ThisBuild / githubWorkflowPublishTargetBranches := Seq()
+ThisBuild / githubWorkflowEnv += ("JABBA_INDEX" -> "https://github.com/typelevel/jdk-index/raw/main/index.json")
+ThisBuild / githubWorkflowJavaVersions := Seq("adoptium@8", "adoptium@17")
+ThisBuild / githubWorkflowBuild := Seq(
+  WorkflowStep
+    .Sbt(
+      List("scalafmtCheckAll", "scalafmtSbtCheck"),
+      name = Some("Check formatting")
+    ),
+  WorkflowStep.Sbt(List("Test/compile"), name = Some("Compile")),
+  WorkflowStep.Sbt(List("test"), name = Some("Run tests"))
+)
 
 lazy val kindProjectorVersion = "0.13.2"
 lazy val aecorVersion = "0.19.0"
