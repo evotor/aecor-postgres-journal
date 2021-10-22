@@ -15,22 +15,24 @@ import fs2.Stream
 import scala.concurrent.duration.FiniteDuration
 
 final class PostgresEventJournalQueries[F[_]: Monad: Timer, K, E] private[aecor] (
-  tableName: String,
-  serializer: Serializer[E],
-  pollInterval: FiniteDuration,
-  xa: Transactor[F]
+    tableName: String,
+    serializer: Serializer[E],
+    pollInterval: FiniteDuration,
+    xa: Transactor[F]
 )(implicit decodeKey: KeyDecoder[K]) {
 
   implicit val keyRead: Read[K] =
     Read[String].map(s => decodeKey(s).getOrElse(throw new Exception("Failed to decode key")))
 
-  /**
-   * Streams all existing events tagged with tag, starting from offset exclusive,
-   * sleeps for pollInterval and then streams events starting with latest seen offset
-   * @param tag - tag to be used as a filter
-   * @param offset - offset to start from, exclusive
-   * @return - a stream of events which terminates when reaches the last existing event.
-   */
+  /** Streams all existing events tagged with tag, starting from offset exclusive, sleeps for pollInterval and then
+    * streams events starting with latest seen offset
+    * @param tag
+    *   - tag to be used as a filter
+    * @param offset
+    *   - offset to start from, exclusive
+    * @return
+    *   - a stream of events which terminates when reaches the last existing event.
+    */
   def eventsByTag(tag: EventTag, offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] = {
     val sleep = Stream.sleep_(pollInterval)
     currentEventsByTag(tag, offset).zipWithNext.noneTerminate
@@ -47,12 +49,14 @@ final class PostgresEventJournalQueries[F[_]: Monad: Timer, K, E] private[aecor]
       }
   }
 
-  /**
-   * Streams all existing events tagged with tag, starting from offset exclusive
-   * @param tag - tag to be used as a filter
-   * @param offset - offset to start from, exclusive
-   * @return - a stream of events which terminates when reaches the last existing event.
-   */
+  /** Streams all existing events tagged with tag, starting from offset exclusive
+    * @param tag
+    *   - tag to be used as a filter
+    * @param offset
+    *   - offset to start from, exclusive
+    * @return
+    *   - a stream of events which terminates when reaches the last existing event.
+    */
   def currentEventsByTag(tag: EventTag, offset: Offset): Stream[F, (Offset, EntityEvent[K, E])] =
     (fr"SELECT id, key, seq_nr, type_hint, bytes FROM"
       ++ Fragment.const(tableName)
@@ -69,7 +73,7 @@ final class PostgresEventJournalQueries[F[_]: Monad: Timer, K, E] private[aecor]
       .transact(xa)
 
   def withOffsetStore(
-    offsetStore: KeyValueStore[F, TagConsumer, Offset]
+      offsetStore: KeyValueStore[F, TagConsumer, Offset]
   ): CommittablePostgresEventJournalQueries[F, K, E] =
     new CommittablePostgresEventJournalQueries(this, offsetStore)
 }

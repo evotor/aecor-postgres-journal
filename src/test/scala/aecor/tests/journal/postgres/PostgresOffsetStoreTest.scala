@@ -2,18 +2,21 @@ package aecor.tests.journal.postgres
 
 import java.util.UUID
 
-import aecor.data.{ConsumerId, EventTag, TagConsumer}
-import aecor.journal.postgres.{Offset, PostgresOffsetStore}
+import aecor.data.{ ConsumerId, EventTag, TagConsumer }
+import aecor.journal.postgres.{ Offset, PostgresOffsetStore }
 import aecor.tests.PostgresTest
-import cats.effect.{ContextShift, IO, Timer}
+import cats.effect.{ ContextShift, IO, Timer }
 import doobie.implicits._
 import org.scalatest.flatspec.AsyncFlatSpec
 
 class PostgresOffsetStoreTest extends AsyncFlatSpec with PostgresTest[IO] {
-  implicit val contextShift: ContextShift[IO] = IO.contextShift(scala.concurrent.ExecutionContext.global)
+  implicit val contextShift: ContextShift[IO] =
+    IO.contextShift(scala.concurrent.ExecutionContext.global)
   implicit val timer: Timer[IO] = IO.timer(scala.concurrent.ExecutionContext.global)
 
-  private val store = PostgresOffsetStore(s"offset_test_${UUID.randomUUID().toString.replace('-', '_')}")
+  private val store = PostgresOffsetStore(
+    s"offset_test_${UUID.randomUUID().toString.replace('-', '_')}"
+  )
 
   private val tagConsumer = TagConsumer(EventTag("TheTag"), ConsumerId("Cnzmrr"))
 

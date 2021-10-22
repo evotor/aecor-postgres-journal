@@ -1,9 +1,9 @@
 package aecor.journal.postgres
 
 import aecor.runtime.KeyValueStore
-import cats.effect.{Concurrent, Resource, Timer}
+import cats.effect.{ Concurrent, Resource, Timer }
 import cats.implicits._
-import fs2.concurrent.{Enqueue, Queue}
+import fs2.concurrent.{ Enqueue, Queue }
 
 import scala.concurrent.duration.FiniteDuration
 

@@ -3,12 +3,12 @@ package aecor.tests.journal.postgres
 import java.util.UUID
 
 import aecor.data._
-import aecor.journal.postgres.{JournalSchema, Offset}
+import aecor.journal.postgres.{ JournalSchema, Offset }
 import aecor.journal.postgres.PostgresEventJournal.Serializer
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.tests.PostgresTest
 import cats.data.NonEmptyChain
-import cats.effect.{ContextShift, IO, Timer}
+import cats.effect.{ ContextShift, IO, Timer }
 import doobie.implicits._
 import org.postgresql.util.PSQLException
 import org.scalatest.flatspec.AsyncFlatSpec
@@ -96,9 +96,9 @@ class PostgresEventJournalTest extends AsyncFlatSpec with PostgresTest[IO] with 
           _ <- journal.append("b", 1L, NonEmptyChain("b1"))
           _ <- journal.append("a", 4L, NonEmptyChain("a4"))
           folded <- journalQueries
-            .currentEventsByTag(tagging.tag, Offset.zero)
-            .compile
-            .toVector
+                      .currentEventsByTag(tagging.tag, Offset.zero)
+                      .compile
+                      .toVector
         } yield folded
       }
       .map(
@@ -126,9 +126,9 @@ class PostgresEventJournalTest extends AsyncFlatSpec with PostgresTest[IO] with 
           _ <- journal.append("b", 1L, NonEmptyChain("b1"))
           _ <- journal.append("a", 4L, NonEmptyChain("a4"))
           r <- journalQueries
-            .currentEventsByTag(tagging.tag, Offset(2L))
-            .compile
-            .toVector
+                 .currentEventsByTag(tagging.tag, Offset(2L))
+                 .compile
+                 .toVector
         } yield r
       }
       .map(
@@ -226,20 +226,20 @@ class PostgresEventJournalTest extends AsyncFlatSpec with PostgresTest[IO] with 
           _ <- journal.append("a", 4L, NonEmptyChain("a4"))
           _ <- journal.append("b", 2L, NonEmptyChain("b2"))
           offset <- journalQueries
-            .currentEventsByTag(tagging.tag, Offset.zero)
-            .take(3)
-            .map(_._1)
-            .compile
-            .last
-            .map(_.getOrElse(Offset.zero))
+                      .currentEventsByTag(tagging.tag, Offset.zero)
+                      .take(3)
+                      .map(_._1)
+                      .compile
+                      .last
+                      .map(_.getOrElse(Offset.zero))
           os <- TestKeyValueStore[IO](Map(TagConsumer(tagging.tag, consumerId) -> offset))
           runOnce = journalQueries
-            .withOffsetStore(os)
-            .currentEventsByTag(tagging.tag, consumerId)
-            .evalMap(_.commit)
-            .as(1)
-            .compile
-            .fold(0)(_ + _)
+                      .withOffsetStore(os)
+                      .currentEventsByTag(tagging.tag, consumerId)
+                      .evalMap(_.commit)
+                      .as(1)
+                      .compile
+                      .fold(0)(_ + _)
           processed1 <- runOnce
           _ <- journal.append("a", 6L, NonEmptyChain("a6"))
           processed2 <- runOnce
