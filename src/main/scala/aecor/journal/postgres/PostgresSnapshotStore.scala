@@ -10,8 +10,10 @@ import doobie._
 import doobie.free.connection.ConnectionIO
 import doobie.implicits._
 
-final class PostgresSnapshotStore[K, S](tableName: String)(implicit S: Serializer[S], encodeKey: KeyEncoder[K])
-    extends KeyValueStore[ConnectionIO, K, Versioned[S]] { outer =>
+final class PostgresSnapshotStore[K, S](tableName: String)(implicit
+    S: Serializer[S],
+    encodeKey: KeyEncoder[K]
+) extends KeyValueStore[ConnectionIO, K, Versioned[S]] { outer =>
 
   def createTable: ConnectionIO[Unit] =
     Update0(
@@ -22,7 +24,7 @@ final class PostgresSnapshotStore[K, S](tableName: String)(implicit S: Serialize
           type_hint TEXT NOT NULL,
           payload BYTEA NOT NULL
         )
-        """,
+      """,
       none
     ).run >> Update0(
       s"CREATE UNIQUE INDEX IF NOT EXISTS ${tableName}_key_uidx ON $tableName (key)",
@@ -80,6 +82,8 @@ final class OptionalKeyValueStore[F[_]: Functor, K, S](outer: KeyValueStore[F, K
 }
 
 object PostgresSnapshotStore {
-  def apply[K, S](tableName: String)(implicit S: Serializer[S], encodeKey: KeyEncoder[K]): PostgresSnapshotStore[K, S] =
+  def apply[K, S](
+      tableName: String
+  )(implicit S: Serializer[S], encodeKey: KeyEncoder[K]): PostgresSnapshotStore[K, S] =
     new PostgresSnapshotStore(tableName)
 }

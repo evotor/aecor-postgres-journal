@@ -65,7 +65,9 @@ scalacOptions ++= Seq(
   "-J-Xss16m",
   "-Xsource:2.13"
 )
-addCompilerPlugin(("org.typelevel" %% "kind-projector" % kindProjectorVersion).cross(CrossVersion.full))
+addCompilerPlugin(
+  ("org.typelevel" %% "kind-projector" % kindProjectorVersion).cross(CrossVersion.full)
+)
 
 Test / parallelExecution := false
 

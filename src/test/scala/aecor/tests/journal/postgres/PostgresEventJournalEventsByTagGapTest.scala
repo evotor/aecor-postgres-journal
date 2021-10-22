@@ -5,10 +5,10 @@ import java.util.UUID
 import aecor.data._
 import aecor.journal.postgres.PostgresEventJournal.Serializer
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
-import aecor.journal.postgres.{JournalSchema, Offset}
+import aecor.journal.postgres.{ JournalSchema, Offset }
 import aecor.tests.PostgresTest
 import cats.data.NonEmptyChain
-import cats.effect.{ContextShift, IO, Timer}
+import cats.effect.{ ContextShift, IO, Timer }
 import cats.implicits._
 import doobie.implicits._
 import fs2._
@@ -71,15 +71,21 @@ class PostgresEventJournalEventsByTagGapTest extends AsyncFlatSpec with Postgres
 
         val allEventsCount = aggregateIds.size * eventsForEachAggregate
 
-        def appendEvents(events: List[(Long, String, String)]) = events.grouped(10).toList.traverse {
-          case (offset, id, content) :: others =>
-            journal.append(id, offset, NonEmptyChain(content, others.map(_._3): _*))
-          case Nil =>
-            IO.unit
-        }
+        def appendEvents(events: List[(Long, String, String)]) =
+          events.grouped(10).toList.traverse {
+            case (offset, id, content) :: others =>
+              journal.append(id, offset, NonEmptyChain(content, others.map(_._3): _*))
+            case Nil =>
+              IO.unit
+          }
 
         val appendAllEvents =
-          fs2.Stream.emits(allEvents).covary[IO].parEvalMapUnordered(100)(appendEvents).compile.drain
+          fs2.Stream
+            .emits(allEvents)
+            .covary[IO]
+            .parEvalMapUnordered(100)(appendEvents)
+            .compile
+            .drain
 
         val foldEvents = Stream
           .emits(tagging.tags)

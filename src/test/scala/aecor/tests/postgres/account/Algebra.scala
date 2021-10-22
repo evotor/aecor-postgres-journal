@@ -1,7 +1,7 @@
 package aecor.tests.postgres.account
-import aecor.encoding.{KeyDecoder, KeyEncoder}
+import aecor.encoding.{ KeyDecoder, KeyEncoder }
 import cats.kernel.Hash
-import cats.tagless.{Derive, FunctorK}
+import cats.tagless.{ Derive, FunctorK }
 
 trait Algebra[F[_]] {
   def open(checkBalance: Boolean): F[Unit]

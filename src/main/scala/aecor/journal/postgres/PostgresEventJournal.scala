@@ -7,14 +7,14 @@ import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.runtime.EventJournal
 import cats.data.NonEmptyChain
 import cats.effect.Bracket
-import cats.implicits.{none, _}
+import cats.implicits.{ none, _ }
 import doobie._
 import doobie.implicits._
 import doobie.postgres.implicits._
 import fs2.Stream
 
 final class PostgresEventJournal[K, E](tableName: String, tagging: Tagging[K], serializer: Serializer[E])(implicit
-  encodeKey: KeyEncoder[K]
+    encodeKey: KeyEncoder[K]
 ) extends EventJournal[ConnectionIO, K, E] { self =>
 
   implicit val keyWrite: Put[K] = Put[String].contramap(encodeKey(_))
@@ -79,12 +79,9 @@ object PostgresEventJournal {
   ): PostgresEventJournal[K, E] =
     new PostgresEventJournal(tableName, tagging, serializer)
 
-  /**
-   * For PgPool users. Modifies Transactor Strategy.
-   * Adds /*NO LOAD BALANCE*/ directive at the beginning of each transaction
-   * which routes queries to master server
-   * Use this function for transactor that is used for a write side
-   */
+  /** For PgPool users. Modifies Transactor Strategy. Adds /*NO LOAD BALANCE*/ directive at the beginning of each
+    * transaction which routes queries to master server Use this function for transactor that is used for a write side
+    */
   def addNoLoadBalanceDirective[F[_]](xa: Transactor[F]): Transactor[F] = {
     val noLoadBalance = Update0("/*NO LOAD BALANCE*/", none).run
     val oldStrategy = xa.strategy

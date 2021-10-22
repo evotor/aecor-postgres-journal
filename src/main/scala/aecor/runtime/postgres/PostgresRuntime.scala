@@ -2,7 +2,7 @@ package aecor.runtime.postgres
 
 import aecor.data.EventsourcedBehavior
 import aecor.runtime.Eventsourced.Entities
-import aecor.runtime.{EventJournal, Eventsourced, Snapshotting}
+import aecor.runtime.{ EventJournal, Eventsourced, Snapshotting }
 import cats.effect.Bracket
 import cats.implicits._
 import cats.kernel.Hash
@@ -18,11 +18,11 @@ object PostgresRuntime {
       .unique
 
   def apply[M[_[_]]: FunctorK, F[_]: Bracket[*[_], Throwable], S, E, K: Hash](
-    typeName: String,
-    behavior: EventsourcedBehavior[M, ConnectionIO, S, E],
-    journal: EventJournal[ConnectionIO, K, E],
-    snapshotting: Snapshotting[F, K, S],
-    transactor: Transactor[F]
+      typeName: String,
+      behavior: EventsourcedBehavior[M, ConnectionIO, S, E],
+      journal: EventJournal[ConnectionIO, K, E],
+      snapshotting: Snapshotting[F, K, S],
+      transactor: Transactor[F]
   ): Entities[K, M, F] = { key =>
     val boundary = Lambda[ConnectionIO ~> F] { ca =>
       (lockKey(typeName, key) *> ca).transact(transactor)

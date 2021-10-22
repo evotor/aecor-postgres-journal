@@ -8,9 +8,9 @@ import aecor.data.Folded.syntax._
 import aecor.data._
 import aecor.journal.postgres.PostgresEventJournal.Serializer
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
-import aecor.tests.postgres.account.AccountEvent.{AccountCredited, AccountDebited, AccountOpened}
+import aecor.tests.postgres.account.AccountEvent.{ AccountCredited, AccountDebited, AccountOpened }
 import aecor.tests.postgres.account.EventsourcedAlgebra.AccountState
-import aecor.tests.postgres.account.Rejection.{AccountDoesNotExist, InsufficientFunds}
+import aecor.tests.postgres.account.Rejection.{ AccountDoesNotExist, InsufficientFunds }
 import cats.Monad
 import cats.implicits._
 import io.circe.jawn
@@ -18,7 +18,7 @@ import io.circe.syntax._
 import io.circe.generic.auto._
 
 final class EventsourcedAlgebra[F[_]](implicit
-  F: MonadActionReject[F, Option[AccountState], AccountEvent, Rejection]
+    F: MonadActionReject[F, Option[AccountState], AccountEvent, Rejection]
 ) extends Algebra[F] {
 
   import F._
@@ -69,9 +69,13 @@ final class EventsourcedAlgebra[F[_]](implicit
 
 object EventsourcedAlgebra {
 
-  def behavior[F[_]: Monad]: EventsourcedBehavior[EitherK[Algebra, Rejection, *[_]], F, Option[
-    AccountState
-  ], AccountEvent] =
+  def behavior[F[_]: Monad]: EventsourcedBehavior[EitherK[Algebra, Rejection, *[_]],
+                                                  F,
+                                                  Option[
+                                                    AccountState
+                                                  ],
+                                                  AccountEvent
+  ] =
     EventsourcedBehavior
       .rejectable(new EventsourcedAlgebra, AccountState.fold)
 
