@@ -25,19 +25,21 @@ ThisBuild / githubWorkflowBuild := Seq(
 )
 
 lazy val kindProjectorVersion = "0.13.2"
-lazy val aecorVersion = "0.20.0-SNAPSHOT-CE3"
+lazy val aecorVersion = "0.20.2-CE3" // published to the local nexus for now
 lazy val doobieVersion = "1.0.0-RC1"
-lazy val catsEffectVersion = "3.2.9"
+lazy val catsEffectVersion = "3.3.1"
 lazy val scalaCheckVersion = "1.15.1"
 lazy val scalaTestVersion = "3.2.6"
-lazy val catsVersion = "2.6.1"
+lazy val catsVersion = "2.7.0"
 lazy val circeVersion = "0.13.0"
 lazy val logbackVersion = "1.2.3"
 lazy val catsTaglessVersion = "0.14.0"
 lazy val testContainersVersion = "0.39.5"
 
 resolvers ++= Seq(
-  Resolver.sonatypeRepo("public")
+  Resolver.sonatypeRepo("public"),
+  ("evo-releases" at "http://nexus.market.local/repository/maven-releases/")
+    .withAllowInsecureProtocol(true)
 )
 
 libraryDependencies ++= Seq(
