@@ -8,7 +8,9 @@ import aecor.journal.postgres.PostgresEventJournal.Serializer
 import aecor.journal.postgres.PostgresEventJournal.Serializer.TypeHint
 import aecor.tests.PostgresTest
 import cats.data.NonEmptyChain
-import cats.effect.{ContextShift, IO, Timer}
+import cats.effect.IO
+import cats.effect.std.Dispatcher
+import cats.effect.unsafe.IORuntime
 import doobie.implicits._
 import org.postgresql.util.PSQLException
 import org.scalatest.flatspec.AsyncFlatSpec
@@ -17,9 +19,10 @@ import org.scalatest.matchers.should.Matchers
 import scala.concurrent.duration._
 
 class PostgresEventJournalTest extends AsyncFlatSpec with PostgresTest[IO] with Matchers {
-  implicit val contextShift: ContextShift[IO] =
-    IO.contextShift(scala.concurrent.ExecutionContext.global)
-  implicit val timer: Timer[IO] = IO.timer(scala.concurrent.ExecutionContext.global)
+  implicit private val ioRuntime: IORuntime = IORuntime.global
+
+  implicit private val dispatcher: Dispatcher[IO] =
+    Dispatcher[IO].allocated.map(_._1).unsafeRunSync()
 
   private val stringSerializer: Serializer[String] = new Serializer[String] {
     override def serialize(a: String): (TypeHint, Array[Byte]) =
@@ -77,7 +80,8 @@ class PostgresEventJournalTest extends AsyncFlatSpec with PostgresTest[IO] with 
       result
         .handleErrorWith {
           case _: PSQLException => IO.unit
-          case _                => IO.raiseError[Unit](new Throwable("Unexpected error type found"))
+          case _ =>
+            IO.raiseError[Unit](new Throwable("Unexpected error type found"))
         }
         .as(succeed)
     }
@@ -168,8 +172,10 @@ class PostgresEventJournalTest extends AsyncFlatSpec with PostgresTest[IO] with 
         } yield out
       }
       .map(
-        _ shouldEqual
-          Vector(
+        _.fold(
+          canceled = fail("Execution was cancelled"),
+          errored = ex => fail(s"Execution ended up with exception [$ex]"),
+          completed = _.unsafeRunSync() shouldEqual Vector(
             (Offset(1L), EntityEvent("a", 1L, "1")),
             (Offset(2L), EntityEvent("a", 2L, "2")),
             (Offset(3L), EntityEvent("a", 3L, "3")),
@@ -177,6 +183,7 @@ class PostgresEventJournalTest extends AsyncFlatSpec with PostgresTest[IO] with 
             (Offset(5L), EntityEvent("a", 4L, "a4")),
             (Offset(6L), EntityEvent("b", 2L, "b2"))
           )
+        )
       )
   }
 
@@ -208,7 +215,13 @@ class PostgresEventJournalTest extends AsyncFlatSpec with PostgresTest[IO] with 
         } yield out
       }
       .map(
-        _ shouldEqual Vector((Offset(6L), EntityEvent("b", 2L, "b2")), (Offset(7L), EntityEvent("a", 5L, "a5")))
+        _.fold(
+          canceled = fail("Execution was cancelled"),
+          errored = ex => fail(s"Execution ended up with exception [$ex]"),
+          completed = _.unsafeRunSync() shouldEqual Vector((Offset(6L), EntityEvent("b", 2L, "b2")),
+                                                           (Offset(7L), EntityEvent("a", 5L, "a5"))
+          )
+        )
       )
   }
 

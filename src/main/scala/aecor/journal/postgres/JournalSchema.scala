@@ -3,9 +3,8 @@ package aecor.journal.postgres
 import aecor.data.Tagging
 import aecor.encoding.{KeyDecoder, KeyEncoder}
 import aecor.journal.postgres.PostgresEventJournal.Serializer
-import cats.Monad
-import cats.effect.Timer
-import cats.implicits.{none, _}
+import cats.effect.Temporal
+import cats.syntax.all._
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
@@ -52,8 +51,8 @@ final class JournalSchema[K, E](tableName: String, serializer: Serializer[E], tr
   def journal(tagging: Tagging[K]): PostgresEventJournal[K, E] =
     PostgresEventJournal(tableName, tagging, serializer)
 
-  def queries[F[_]: Timer: Monad](xa: Transactor[F],
-                                  pollInterval: FiniteDuration = 100.millis
+  def queries[F[_]: Temporal](xa: Transactor[F],
+                              pollInterval: FiniteDuration = 100.millis
   ): PostgresEventJournalQueries[F, K, E] =
     new PostgresEventJournalQueries(tableName, serializer, pollInterval, xa)
 }
@@ -62,5 +61,6 @@ object JournalSchema {
   def apply[K, E](tableName: String, serializer: Serializer[E], trackTimestamps: Boolean = false)(implicit
     keyEncoder: KeyEncoder[K],
     keyDecoder: KeyDecoder[K]
-  ): JournalSchema[K, E] = new JournalSchema(tableName, serializer, trackTimestamps)
+  ): JournalSchema[K, E] =
+    new JournalSchema(tableName, serializer, trackTimestamps)
 }

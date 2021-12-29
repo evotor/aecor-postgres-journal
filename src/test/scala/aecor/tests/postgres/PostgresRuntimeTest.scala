@@ -4,13 +4,17 @@ import aecor.tests.postgres.account._
 import aecor.tests.postgres.account.deployment._
 import aecor.tests.PostgresTest
 import cats.effect._
+import cats.effect.std.Dispatcher
+import cats.effect.unsafe.IORuntime
 import cats.implicits._
 import doobie.implicits._
 import org.scalatest.flatspec.AsyncFlatSpec
 
 class PostgresRuntimeTest extends AsyncFlatSpec with PostgresTest[IO] {
-  implicit val contextShift: ContextShift[IO] =
-    IO.contextShift(scala.concurrent.ExecutionContext.global)
+  implicit private val ioRuntime: IORuntime = IORuntime.global
+
+  implicit private val dispatcher: Dispatcher[IO] =
+    Dispatcher[IO].allocated.map(_._1).unsafeRunSync()
 
   "PostgresRuntime" should "work correctly" in effectTest {
     newDatabaseResource

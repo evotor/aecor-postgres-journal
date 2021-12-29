@@ -3,7 +3,7 @@ package aecor.runtime.postgres
 import aecor.data.EventsourcedBehavior
 import aecor.runtime.Eventsourced.Entities
 import aecor.runtime.{EventJournal, Eventsourced, Snapshotting}
-import cats.effect.Bracket
+import cats.effect.MonadCancel
 import cats.implicits._
 import cats.kernel.Hash
 import cats.tagless.FunctorK
@@ -17,7 +17,7 @@ object PostgresRuntime {
       .query[Unit]
       .unique
 
-  def apply[M[_[_]]: FunctorK, F[_]: Bracket[*[_], Throwable], S, E, K: Hash](
+  def apply[M[_[_]]: FunctorK, F[_]: MonadCancel[*[_], Throwable], S, E, K: Hash](
     typeName: String,
     behavior: EventsourcedBehavior[M, ConnectionIO, S, E],
     journal: EventJournal[ConnectionIO, K, E],
